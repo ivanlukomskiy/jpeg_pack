@@ -79,6 +79,7 @@ export class BitsIteratorImpl implements BitsIterator {
   }
 
   static random(length: number): BitsIteratorImpl {
+    if (length % 8 != 0) throw new Error("length should be multiple of 8")
     const data = new Uint8Array(Math.ceil(length / 8));
     for (let i = 0; i < data.length; i++) {
         data[i] = Math.floor(Math.random() * 256);
