@@ -1,5 +1,6 @@
 export interface BitsIterator {
   next(): number | null;
+  nextN(n: number): number | null
 }
 
 export class BitsIteratorImpl implements BitsIterator {
@@ -102,5 +103,24 @@ export class BitsIteratorImpl implements BitsIterator {
     }
     
     return bitValue;
+  }
+
+  nextN(n: number = 8): number | null {
+    if (n < 1 || n > 8) {
+      throw new Error('n must be between 1 and 8');
+    }
+    let result = 0;
+    for (let i = 0; i < n; i++) {
+      // fixme maybe throw error if there's no more data?
+      const byte = this.length / 8 <= this.currentByte ? 0 : this.data[this.currentByte];
+      const bitValue = (byte >> (7 - this.currentBit)) & 1;
+      result = (result << 1) | bitValue;
+      this.currentBit++;
+      if (this.currentBit >= 8) {
+        this.currentBit = 0;
+        this.currentByte++;
+      }
+    }
+    return result;
   }
 }
