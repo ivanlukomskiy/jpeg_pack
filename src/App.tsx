@@ -5,10 +5,11 @@ import './App.css'
 import { useOpenCV } from './hooks/opencv'
 import { BitsIteratorImpl } from './processing/bits_iter'
 import { EncoderImpl } from './processing/encoder'
-import { DctConfs, DctConfsChroma } from './processing/config'
+import { DctConfs, DctConfsChroma, DefaultEncodingConf } from './processing/config'
 import { displayImage } from './processing/image'
 import { Button, Flex, Input, NumberInput, SegmentedControl, Textarea, TextInput, Title } from '@mantine/core'
 import { Mat } from './components/mat/Mat'
+import { DecoderImpl } from './processing/decoder'
 
 
 function downloadMatAsJpeg(mat, filename = 'image.jpg') {
@@ -38,6 +39,7 @@ function downloadMatAsJpeg(mat, filename = 'image.jpg') {
 
 const INP_TYPE_TEXT = 'text';
 const INP_TYPE_RANDOM = 'random';
+const INP_TYPE_DECODE = 'decode';
 const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT];
 
 
@@ -45,7 +47,7 @@ function App() {
   const [mat, setMat] = useState<any>(null)
   const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
-  const [inpType, setInpType] = useState(INP_TYPE_RANDOM)
+  const [inpType, setInpType] = useState(INP_TYPE_TEXT)
   const [inpText, setInpText] = useState("sample")
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cvLib = useOpenCV();
@@ -57,12 +59,18 @@ function App() {
     } else {
       iter = BitsIteratorImpl.random(randInputSize);
     }
-    const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DctConfsChroma, DctConfs)
+    const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
     const [image, res] = encoder.encode();
     displayImage(res, canvasRef.current!);
     setMat(image);
     setRes(res);
   }, [cvLib, randInputSize, inpType, inpText])
+
+  const decode = useCallback(() => {
+    if (!res) return;
+    const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
+    decoder.decode(res);
+  }, [res])
 
   const download = useCallback(() => {
     if (!res) return;
@@ -79,6 +87,7 @@ function App() {
   }, []);
 
   return (
+    <Flex direction={'column'} gap={'xl'}>
     <Flex direction={'row'} gap={'xl'}>
       <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
         <Title size={'lg'}>Input</Title>
@@ -92,11 +101,21 @@ function App() {
       <Flex direction={'column'} gap={'sm'}>
         <Title size={'lg'}>Result</Title>
         <canvas ref={canvasRef} width={240} height={240} onClick={download} style={{cursor: res ? 'pointer' : undefined }}></canvas>
-        {/* <Title>YCrCb</Title>
-        <Mat mat={mat} />
-        <Title>BGR</Title>
-        <Mat mat={res} /> */}
+        {res && <Button onClick={decode}>
+          Decode
+        </Button>}
       </Flex>
+      <Flex direction={'column'} gap={'sm'}>
+        <Title size={'lg'}>Decoded</Title>
+        
+      </Flex>
+    </Flex>
+    <Flex direction={'column'} gap={'xl'}>
+      <Title>YCrCb</Title>
+      <Mat mat={mat} />
+      <Title>BGR</Title>
+      <Mat mat={res} />
+    </Flex>
     </Flex>
   )
 }
