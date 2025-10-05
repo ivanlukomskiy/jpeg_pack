@@ -1,5 +1,6 @@
 import type { DctCoefConf, EncodingConf } from "./config";
 import { dct8x8Mat } from "./dct";
+import { Uint8ArrayBuilder } from "./uint_array_builder";
 
 export interface Decoder {
     decode: (mat) => any;
@@ -13,7 +14,8 @@ export class DecoderImpl implements Decoder {
     private x: number = 0;
     private y: number = 0;
     private ch: number = 0;
-    private res?: Uint8Array;
+    private res?: Uint8ArrayBuilder;
+    private bitIdx = 0;
 
     constructor(cv: any, conf: EncodingConf) {
         this.conf = conf;
@@ -24,14 +26,14 @@ export class DecoderImpl implements Decoder {
         if (mat.rows % 8 != 0 || mat.cols % 8 != 0) {
             throw new Error("image dimensions should be multiples of 8")
         }
-        let sizePerBlock = 0;
+        let bitsPerBlock = 0;
         this.conf.chromaConf.forEach(c => {
-            sizePerBlock += c.bitsCapacity * 2
+            bitsPerBlock += c.bitsCapacity * 2
         })
         this.conf.lumaConf.forEach(c => {
-            sizePerBlock += c.bitsCapacity
+            bitsPerBlock += c.bitsCapacity
         })
-        this.res = new Uint8Array(sizePerBlock * mat.rows / 8 * mat.cols / 8)
+        this.res = new Uint8ArrayBuilder(bitsPerBlock * mat.rows / 8 * mat.cols / 8 / 8)
         
         let ycrcb = new this.cv.Mat();
         this.cv.cvtColor(mat, ycrcb, this.cv.COLOR_RGB2YCrCb);
@@ -39,8 +41,9 @@ export class DecoderImpl implements Decoder {
 
         while (this.ch < 3) {
             this.decodeNextBlock();
-            console.log("block decoded")
+            // console.log("block decoded")
         }
+        return this.res.toUint8Array();
     }
 
     private decodeNextBlock() {
@@ -53,9 +56,9 @@ export class DecoderImpl implements Decoder {
                 / this.conf.dctToImageTransform.multiplier;
 
                 block.floatPtr(y, x)[0] = val;
-                if (this.ch == 0) {
-                    console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', val)
-                }
+                // if (this.ch == 0) {
+                //     console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', val)
+                // }
                 
 
                 // let pixelValue = Math.floor(blockImage.floatPtr(i, j)[0] 
@@ -71,12 +74,17 @@ export class DecoderImpl implements Decoder {
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
         const dctMat = dct8x8Mat(block);
 
-        for (let y = 0; y < 8; y++) {
-            for (let x = 0; x < 8; x++) {
-                if (this.ch != 0) continue;
-                console.log('dct x=', x, ', y=', y, ', ch=', this.ch, ': ', dctMat.floatPtr(y, x)[0])
+        conf.forEach((c: DctCoefConf) => {
+            const max = (1 << c.bitsCapacity) - 1;
+            const dctCoef = dctMat.floatAt(c.y, c.x);
+            const value = Math.round(dctCoef * max);
+            for (let i = c.bitsCapacity - 1; i >= 0; i--) {
+                const bitValue = (value >> i) & 1;
+                this.res?.addBit(bitValue);
+                // console.log('bit', bitValue)
             }
-        }
+            // console.log('dct', c.x, c.y, this.ch, 'float: ', dctCoef, 'max: ', max, 'val:', value)
+        })
 
         this.x += 8
         if (this.x >= this.image.cols) {

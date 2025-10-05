@@ -45,16 +45,18 @@ export class EncoderImpl implements Encoder {
             const max = (1 << c.bitsCapacity) - 1;
             // console.log('byte', byte, 'capacity', c.bitsCapacity, 'max', max)
             // dctMat.floatPtr(c.x, c.y)[0] = 0.33;
-            dctMat.floatPtr(c.x, c.y)[0] = byte / max;
-            console.log('dct set', c.x, c.y, this.ch, byte / max)
+
+            // fixme was flipped
+            dctMat.floatPtr(c.y, c.x)[0] = byte / max;
+            // console.log('dct set', c.x, c.y, this.ch, byte / max)
         })
 
-        for (let i = 0; i < 8; i++) {
-            for (let j = 0; j < 8; j++) {
-                if (this.ch != 0) continue;
-                console.log('dct x=', j, ', y=', i, ', ch=', this.ch, ': ', dctMat.floatPtr(i, j)[0])
-            }
-        }
+        // for (let i = 0; i < 8; i++) {
+        //     for (let j = 0; j < 8; j++) {
+        //         if (this.ch != 0) continue;
+        //         console.log('dct x=', j, ', y=', i, ', ch=', this.ch, ': ', dctMat.floatPtr(i, j)[0])
+        //     }
+        // }
 
         // const blockImage = new this.cv.Mat(8, 8, this.cv.CV_32F);
         const blockImage = idct8x8Mat(this.cv, dctMat);
@@ -80,16 +82,18 @@ export class EncoderImpl implements Encoder {
                     + this.conf.dctToImageTransform.addition);
                 pixelValue = Math.max(0, Math.min(255, pixelValue))
 
-                if (this.ch == 0) {
-                    const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
-                    / this.conf.dctToImageTransform.multiplier;
-                    console.log('blk value x=', x, ', y=', y, ': ', blockImage.floatPtr(y, x)[0], ' -> ', reverse)
-                }
+                // if (this.ch == 0) {
+                //     const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
+                //     / this.conf.dctToImageTransform.multiplier;
+                //     console.log('blk value x=', x, ', y=', y, ': ', blockImage.floatPtr(y, x)[0], ' -> ', reverse)
+                // }
 
                 this.image.ucharPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
                 // console.log('put ', pixelValue, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }
         }
+
+        // console.log('block encoded')
         
         blockImage.delete();
         // blockImageUint8.delete();

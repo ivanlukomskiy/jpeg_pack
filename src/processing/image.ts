@@ -19,7 +19,7 @@ export function displayImage(mat: any, canvas: HTMLCanvasElement) {
             data[i + 3] = 255;   // A (fully opaque)
         }
     } else if (mat.channels() === 3) {
-        console.log('BGR')
+        // console.log('BGR')
         // BGR
         imageData = ctx.createImageData(mat.cols, mat.rows);
         const data = imageData.data;

@@ -69,7 +69,8 @@ function App() {
   const decode = useCallback(() => {
     if (!res) return;
     const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-    decoder.decode(res);
+    const bytes = decoder.decode(res);
+    console.log('decoded:', bytes)
   }, [res])
 
   const download = useCallback(() => {
