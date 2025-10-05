@@ -5,7 +5,7 @@ import './App.css'
 import { useOpenCV } from './hooks/opencv'
 import { BitsIteratorImpl } from './processing/bits_iter'
 import { EncoderImpl } from './processing/encoder'
-import { DctConfs } from './processing/config'
+import { DctConfs, DctConfsChroma } from './processing/config'
 import { displayImage } from './processing/image'
 import { Button, Flex, Title } from '@mantine/core'
 import { Mat } from './components/mat/Mat'
@@ -19,8 +19,8 @@ function App() {
   const cvLib = useOpenCV();
 
   const go = useCallback(() => {
-    const iter = BitsIteratorImpl.random(32);
-    const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DctConfs, DctConfs)
+    const iter = BitsIteratorImpl.random(32*3);
+    const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DctConfsChroma, DctConfs)
     const [image, res] = encoder.encode();
     displayImage(res, canvasRef.current!);
     setMat(image);
