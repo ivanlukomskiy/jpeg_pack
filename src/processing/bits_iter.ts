@@ -59,6 +59,30 @@ export class BitsIteratorImpl implements BitsIterator {
     return new BitsIteratorImpl(data, length);
   }
 
+  // e.g., [1, 0, 1, 0]
+  static fromText(text: string): BitsIteratorImpl {
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const length = data.length * 8;
+    
+    // for (let i = 0; i < length; i++) {
+    //   const bit = bitsArray[i];
+    //   if (bit !== 0 && bit !== 1) {
+    //     throw new Error(`Invalid bit value: ${bit}. Must be 0 or 1.`);
+    //   }
+      
+    //   const byteIndex = Math.floor(i / 8);
+    //   const bitIndex = 7 - (i % 8);
+      
+    //   if (bit === 1) {
+    //     data[byteIndex] |= (1 << bitIndex);
+    //   }
+    // }
+    
+    return new BitsIteratorImpl(data, length);
+  }
+
   static async fromFile(file: File): Promise<BitsIteratorImpl> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
