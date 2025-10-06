@@ -25,12 +25,24 @@ export class EncoderImpl implements Encoder {
     }
 
     public encode() {
+        // console.log('encoding')
         while (this.ch < 3) {
             this.encodeNextBlock();
         }
         let res = new this.cv.Mat();
         this.cv.cvtColor(this.image, res, this.cv.COLOR_YCrCb2RGB);
-        
+
+        let tmp = new this.cv.Mat();
+        this.cv.cvtColor(res, tmp, this.cv.COLOR_RGB2YCrCb);
+
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {   
+                const a = tmp.ucharPtr(y,x)[0];
+                const b = this.image.ucharPtr(y,x)[0];
+                if (a != b) console.error('mismatch', a, b)
+            }
+        }
+
         return [this.image, res];
         // return [this.image, null];
     }
@@ -48,7 +60,7 @@ export class EncoderImpl implements Encoder {
 
             // fixme was flipped
             dctMat.floatPtr(c.y, c.x)[0] = byte / max;
-            // console.log('dct set', c.x, c.y, this.ch, byte / max)
+            // if (this.ch == 0) console.log('dct', c.x, c.y, this.ch, byte / max)
         })
 
         // for (let i = 0; i < 8; i++) {
@@ -80,6 +92,8 @@ export class EncoderImpl implements Encoder {
                 let pixelValue = Math.round(blockImage.floatPtr(y, x)[0] 
                     * this.conf.dctToImageTransform.multiplier 
                     + this.conf.dctToImageTransform.addition);
+                // if (pixelValue > 255) console.log('overflow', pixelValue);
+                // if (pixelValue < 0) console.log('underflow', pixelValue);
                 pixelValue = Math.max(0, Math.min(255, pixelValue))
 
                 // if (this.ch == 0) {
@@ -88,6 +102,7 @@ export class EncoderImpl implements Encoder {
                 //     console.log('blk value x=', x, ', y=', y, ': ', blockImage.floatPtr(y, x)[0], ' -> ', reverse)
                 // }
 
+                if (this.ch !== 0) continue;
                 this.image.ucharPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
                 // console.log('put ', pixelValue, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }

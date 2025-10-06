@@ -59,7 +59,7 @@ function App() {
   const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
   const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
-  const [inpText, setInpText] = useState("sample")
+  const [inpText, setInpText] = useState("adc")
   // const [errRateData, setErrRateData] = useState(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cvLib = useOpenCV();
@@ -79,6 +79,7 @@ function App() {
   }, [cvLib, randInputSize, inpType, inpText])
 
   const benchmark = useCallback(() => {
+    const blocksSide = 8;
     let size = 0;
     DefaultEncodingConf.chromaConf.forEach(c => {
       size += c.bitsCapacity * 2;
@@ -86,20 +87,21 @@ function App() {
     DefaultEncodingConf.lumaConf.forEach(c => {
       size += c.bitsCapacity;
     })
+    size *= blocksSide * blocksSide;
 
     const rates = [];
     for (let i = 0; i < 100; i ++) {
       const original = randomUint8Arr(size);
       const iter = BitsIteratorImpl.fromBytes(original);
-      const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
+      const encoder = new EncoderImpl(cvLib.cv, 8 * blocksSide, 8 * blocksSide, iter, DefaultEncodingConf)
       const [image, res] = encoder.encode();
       const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
       const decoded = decoder.decode(res);
       console.log('original', original)
       console.log('decoded', decoded)
       displayImage(res, canvasRef.current!);
-      setMat(image);
-      setRes(res);
+      // setMat(image);
+      // setRes(res);
       const errorsCount = compareBits(original, decoded)
       console.log('err', errorsCount)
       rates.push(errorsCount / size)

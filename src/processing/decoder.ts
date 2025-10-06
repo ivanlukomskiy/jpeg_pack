@@ -23,6 +23,7 @@ export class DecoderImpl implements Decoder {
     }
 
     decode(mat) {
+        // console.log('decoding')
         if (mat.rows % 8 != 0 || mat.cols % 8 != 0) {
             throw new Error("image dimensions should be multiples of 8")
         }
@@ -57,9 +58,10 @@ export class DecoderImpl implements Decoder {
                 / this.conf.dctToImageTransform.multiplier;
 
                 block.floatPtr(y, x)[0] = val;
-                // if (this.ch == 0) {
-                //     console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', val)
-                // }
+                if (this.ch == 0) {
+                    // console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', val)
+                    // console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', this.image.ucharPtr(this.y + y, this.x + x)[this.ch])
+                }
                 
 
                 // let pixelValue = Math.floor(blockImage.floatPtr(i, j)[0] 
@@ -79,6 +81,7 @@ export class DecoderImpl implements Decoder {
             const max = (1 << c.bitsCapacity) - 1;
             const dctCoef = dctMat.floatAt(c.y, c.x);
             const value = Math.round(dctCoef * max);
+            // if (this.ch == 0) console.log('dct', c.x, c.y, this.ch, dctCoef)
             for (let i = c.bitsCapacity - 1; i >= 0; i--) {
                 const bitValue = (value >> i) & 1;
                 this.res?.addBit(bitValue);
