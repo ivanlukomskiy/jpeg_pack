@@ -22,9 +22,9 @@ export class DecoderImpl implements Decoder {
         this.cv = cv
     }
 
-    decode(mat) {
+    decode(rgb8uchar) {
         // console.log('decoding')
-        if (mat.rows % 8 != 0 || mat.cols % 8 != 0) {
+        if (rgb8uchar.rows % 8 != 0 || rgb8uchar.cols % 8 != 0) {
             throw new Error("image dimensions should be multiples of 8")
         }
         let bitsPerBlock = 0;
@@ -34,11 +34,14 @@ export class DecoderImpl implements Decoder {
         this.conf.lumaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity
         })
-        const expectedSize = bitsPerBlock * mat.rows / 8 * mat.cols / 8 / 8;
+        const expectedSize = bitsPerBlock * rgb8uchar.rows / 8 * rgb8uchar.cols / 8 / 8;
         this.res = new Uint8ArrayBuilder(expectedSize)
+
+        let rgb32float = new this.cv.Mat();
+        rgb8uchar.convertTo(rgb32float, this.cv.CV_32F, 1/255.0);
         
         let ycrcb = new this.cv.Mat();
-        this.cv.cvtColor(mat, ycrcb, this.cv.COLOR_RGB2YCrCb);
+        this.cv.cvtColor(rgb32float, ycrcb, this.cv.COLOR_RGB2YCrCb);
         this.image = ycrcb;
 
         while (this.ch < 3) {
@@ -53,9 +56,8 @@ export class DecoderImpl implements Decoder {
         
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
-                const val = (this.image.ucharPtr(this.y + y, this.x + x)[this.ch] 
-                - this.conf.dctToImageTransform.addition)
-                / this.conf.dctToImageTransform.multiplier;
+                let val = this.image.floatPtr(this.y + y, this.x + x)[this.ch];
+                val = (val - this.conf.dctToImageTransform.addition) / this.conf.dctToImageTransform.multiplier;
 
                 block.floatPtr(y, x)[0] = val;
                 if (this.ch == 0) {

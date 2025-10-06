@@ -58,7 +58,8 @@ function App() {
   const [mat, setMat] = useState<any>(null)
   const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
-  const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
+  // const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
+  const [inpType, setInpType] = useState(INP_TYPE_TEXT)
   const [inpText, setInpText] = useState("adc")
   // const [errRateData, setErrRateData] = useState(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);

@@ -17,8 +17,8 @@ export class EncoderImpl implements Encoder {
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
 
-        this.image = new cv.Mat(width, height, cv.CV_8UC3)
-        this.image.setTo(new cv.Scalar(0, 127, 127))
+        this.image = new cv.Mat(width, height, cv.CV_32FC3)
+        this.image.setTo(new cv.Scalar(0, .5, .5))
         this.bitsIter = bitsIter
         this.conf = conf;
         this.cv = cv
@@ -29,21 +29,19 @@ export class EncoderImpl implements Encoder {
         while (this.ch < 3) {
             this.encodeNextBlock();
         }
-        let res = new this.cv.Mat();
-        this.cv.cvtColor(this.image, res, this.cv.COLOR_YCrCb2RGB);
 
-        let tmp = new this.cv.Mat();
-        this.cv.cvtColor(res, tmp, this.cv.COLOR_RGB2YCrCb);
+        let rgb32 = new this.cv.Mat();
+        this.cv.cvtColor(this.image, rgb32, this.cv.COLOR_YCrCb2RGB)
+        this.cv.min(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [1,1,1,0]), rgb32);
+        this.cv.max(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [0,0,0,0]), rgb32);
 
-        for (let y = 0; y < 8; y++) {
-            for (let x = 0; x < 8; x++) {   
-                const a = tmp.ucharPtr(y,x)[0];
-                const b = this.image.ucharPtr(y,x)[0];
-                if (a != b) console.error('mismatch', a, b)
-            }
-        }
+        let rgb8 = new this.cv.Mat();
+        rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
 
-        return [this.image, res];
+        let ycrcb8 = new this.cv.Mat();
+        this.image.convertTo(ycrcb8, this.cv.CV_8U, 255);
+
+        return [ycrcb8, rgb8];
         // return [this.image, null];
     }
 
@@ -53,12 +51,10 @@ export class EncoderImpl implements Encoder {
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
         conf.forEach((c: DctCoefConf) => {
             const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
-            // THESE ARE ALWAYS DIFFERENT
             const max = (1 << c.bitsCapacity) - 1;
             // console.log('byte', byte, 'capacity', c.bitsCapacity, 'max', max)
             // dctMat.floatPtr(c.x, c.y)[0] = 0.33;
 
-            // fixme was flipped
             dctMat.floatPtr(c.y, c.x)[0] = byte / max;
             // if (this.ch == 0) console.log('dct', c.x, c.y, this.ch, byte / max)
         })
@@ -92,9 +88,12 @@ export class EncoderImpl implements Encoder {
                 let pixelValue = Math.round(blockImage.floatPtr(y, x)[0] 
                     * this.conf.dctToImageTransform.multiplier 
                     + this.conf.dctToImageTransform.addition);
-                // if (pixelValue > 255) console.log('overflow', pixelValue);
-                // if (pixelValue < 0) console.log('underflow', pixelValue);
                 pixelValue = Math.max(0, Math.min(255, pixelValue))
+
+                pixelValue = blockImage.floatPtr(y, x)[0]
+                pixelValue = pixelValue
+                    * this.conf.dctToImageTransform.multiplier 
+                    + this.conf.dctToImageTransform.addition;
 
                 // if (this.ch == 0) {
                 //     const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
@@ -103,7 +102,7 @@ export class EncoderImpl implements Encoder {
                 // }
 
                 if (this.ch !== 0) continue;
-                this.image.ucharPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
+                this.image.floatPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
                 // console.log('put ', pixelValue, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }
         }
