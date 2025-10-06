@@ -27,9 +27,9 @@ export const DctConfs: DctCoefConf[] = [
 ] // 24
 
 export const DctConfsChroma: DctCoefConf[] = [
-    {x: 0, y: 0, bitsCapacity: 2},
-    {x: 1, y: 0, bitsCapacity: 1},
-    {x: 0, y: 1, bitsCapacity: 1},
+    // {x: 0, y: 0, bitsCapacity: 2},
+    // {x: 1, y: 0, bitsCapacity: 1},
+    // {x: 0, y: 1, bitsCapacity: 1},   
 ] // 4 * 2
 
 export const DefaultEncodingConf: EncodingConf = {

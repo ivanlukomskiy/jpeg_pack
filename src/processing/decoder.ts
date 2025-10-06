@@ -25,7 +25,7 @@ export class DecoderImpl implements Decoder {
     decode(rgb8uchar) {
         // console.log('decoding')
         if (rgb8uchar.rows % 8 != 0 || rgb8uchar.cols % 8 != 0) {
-            throw new Error("image dimensions should be multiples of 8")
+            throw new Error(`image dimensions should be multiples of 8; got ${rgb8uchar.rows}x${rgb8uchar.cols}`)
         }
         let bitsPerBlock = 0;
         this.conf.chromaConf.forEach(c => {

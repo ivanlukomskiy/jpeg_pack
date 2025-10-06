@@ -12,6 +12,49 @@ import { Mat } from './components/mat/Mat'
 import { DecoderImpl } from './processing/decoder'
 import { BarChart } from '@mantine/charts'
 
+// rgb8: CV_8UC3 (RGB), range 0..255
+async function jpegRoundTrip(cv, rgb8, quality = 0.95) {
+  // --- ENCODE via Canvas ---
+  // 1) RGB -> RGBA (for canvas)
+  let rgba = new cv.Mat();
+  cv.cvtColor(rgb8, rgba, cv.COLOR_RGB2RGBA);
+
+  // 2) Draw to a canvas
+  const encCanvas = document.createElement('canvas');
+  encCanvas.width = rgba.cols;
+  encCanvas.height = rgba.rows;
+  cv.imshow(encCanvas, rgba);
+  rgba.delete();
+
+  // 3) Encode to JPEG using browser encoder
+  const blob = await new Promise(res => encCanvas.toBlob(res, 'image/jpeg', quality));
+
+  // --- DECODE via Canvas/ImageData ---
+  // 4) Decode blob to an <img> and draw it
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+
+  const decCanvas = document.createElement('canvas');
+  decCanvas.width = img.naturalWidth;
+  decCanvas.height = img.naturalHeight;
+  const dctx = decCanvas.getContext('2d');
+  dctx.drawImage(img, 0, 0);
+  URL.revokeObjectURL(url);
+
+  // 5) Read pixels back to Mat (RGBA) without cv.imread
+  const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
+  let rgbaDec = cv.matFromImageData(imageData);
+
+  // 6) RGBA -> RGB Mat
+  let rgb8Decoded = new cv.Mat();
+  cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
+  rgbaDec.delete();
+
+  return { rgb8Decoded, blob };
+}
+
 
 function downloadMatAsJpeg(mat, filename = 'image.jpg') {
     const canvas = document.createElement('canvas');
@@ -79,7 +122,7 @@ function App() {
     setRes(res);
   }, [cvLib, randInputSize, inpType, inpText])
 
-  const benchmark = useCallback(() => {
+  const benchmark = useCallback(async () => {
     const blocksSide = 8;
     let size = 0;
     DefaultEncodingConf.chromaConf.forEach(c => {
@@ -96,8 +139,12 @@ function App() {
       const iter = BitsIteratorImpl.fromBytes(original);
       const encoder = new EncoderImpl(cvLib.cv, 8 * blocksSide, 8 * blocksSide, iter, DefaultEncodingConf)
       const [image, res] = encoder.encode();
+
+      let {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, 95);
+      console.log('rgb8Decoded', rgb8Decoded)
+
       const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-      const decoded = decoder.decode(res);
+      const decoded = decoder.decode(rgb8Decoded);
       // console.log('original', original)
       // console.log('decoded', decoded)
       displayImage(res, canvasRef.current!);

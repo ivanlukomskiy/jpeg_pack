@@ -85,16 +85,12 @@ export class EncoderImpl implements Encoder {
                 // const pixelValue = blockImageUint8.ucharPtr(i, j)[0];
                 // fixme precompute these coefficients
 
-                // fixme maybe round instead??
-                let pixelValue = Math.round(blockImage.floatPtr(y, x)[0] 
-                    * tranform.multiplier 
-                    + tranform.addition);
-                pixelValue = Math.max(0, Math.min(255, pixelValue))
-
-                pixelValue = blockImage.floatPtr(y, x)[0]
+                let pixelValue = blockImage.floatPtr(y, x)[0]
                 pixelValue = pixelValue
                     * tranform.multiplier 
                     + tranform.addition;
+                
+                if (conf.length == 0) pixelValue = 0.5;
 
                 // if (this.ch == 0) {
                 //     const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
