@@ -6,4 +6,3 @@
 // 6. data length
 // 7. data symbols
 // 8. error correction symbols (the rest)
-

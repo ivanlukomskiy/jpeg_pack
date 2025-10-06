@@ -1,3 +1,5 @@
+import { DefaultEncodingConf, type DctCoefConf } from "./config";
+
 export interface BitsIterator {
   next(): number | null;
   nextN(n: number): number | null
@@ -108,6 +110,101 @@ export function compareBits(array1: Uint8Array, array2: Uint8Array): number {
     }
 
     return differentBits;
+}
+
+export function compareBytes(array1: Uint8Array, array2: Uint8Array): number {
+    if (array1.length !== array2.length) {
+        throw new Error('Arrays must be of the same length');
+    }
+
+    let differentBytes = 0;
+
+    for (let i = 0; i < array1.length; i++) {
+        if (array1[i] != array2[i]) differentBytes++;
+    }
+
+    return differentBytes;
+}
+
+let offsetToDct_: null | Record<number, string> = null;
+let blockSize = 0;
+
+function buildOffsetMap() {
+  if (offsetToDct_ !== null) return offsetToDct_;
+  const offsetToDct: Record<number, string> = {};
+  let offset = 0;
+  DefaultEncodingConf.lumaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      offsetToDct[offset] = `l_${c.x},${c.y}`
+      offset++;
+      blockSize++;
+    }
+  });
+  DefaultEncodingConf.chromaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      offsetToDct[offset] = `cr_${c.x},${c.y}`
+      offset++;
+      blockSize++;
+    }
+  });
+  DefaultEncodingConf.chromaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      offsetToDct[offset] = `cb_${c.x},${c.y}`
+      offset++;
+      blockSize++;
+    }
+  });
+  offsetToDct_ = offsetToDct;
+  return offsetToDct_;
+}
+
+export function buildErrSourceAcc() {
+  const offsetMap = buildOffsetMap();
+  const res: Record<string, number> = {};
+  Object.values(offsetMap).forEach(val => {
+    res[val] = 0;
+  })
+  return res;
+}
+
+export function normalizeErrorSources(acc: Record<string, number>) {
+  DefaultEncodingConf.lumaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      acc[`l_${c.x},${c.y}`] /= c.bitsCapacity;
+    }
+  });
+  DefaultEncodingConf.chromaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      acc[`cr_${c.x},${c.y}`] /= c.bitsCapacity;
+    }
+  });
+  DefaultEncodingConf.chromaConf.forEach(c => {
+    for (let i = 0; i < c.bitsCapacity; i++) {
+      acc[`cb_${c.x},${c.y}`] /= c.bitsCapacity;
+    }
+  });
+}
+
+export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, acc: Record<string, number>) {
+  if (array1.length !== array2.length) {
+    throw new Error('Arrays must be of the same length');
+  }
+  const offsetMap = buildOffsetMap();
+  
+  for (let i = 0; i < array1.length; i++) {
+        const byte1 = array1[i];
+        const byte2 = array2[i];
+        
+        for (let bitPos = 7; bitPos >= 0; bitPos--) {
+            const bit1 = (byte1 >> bitPos) & 1;
+            const bit2 = (byte2 >> bitPos) & 1;
+            if (bit1 !== bit2) {
+              const offset = (i * 8 + (7 - bitPos)) % blockSize;
+              const dctName = offsetMap[offset];
+              acc[dctName]++;
+            }
+        }
+    }
 }
 
 function countBits(byte: number): number {
