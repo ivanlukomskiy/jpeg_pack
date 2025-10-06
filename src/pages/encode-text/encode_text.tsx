@@ -92,6 +92,7 @@ export function EncodeText() {
             <Title size={'lg'}>Details</Title>
             <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
             <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography>
+            <Typography>Bytes per block: {bytesPerBlock}</Typography>
           </Flex>
         </Flex>
       )

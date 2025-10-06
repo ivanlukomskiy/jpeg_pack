@@ -41,7 +41,7 @@ function App() {
         <Routes>
         <Route path="/" element={<EncodeText />} />
         <Route path="/benchmark" element={<Benchmark />} />
-        <Route path="/block" element={<Benchmark />} />
+        <Route path="/block" element={<OneBlockTest />} />
       </Routes>
       </AppShell.Main>
     </AppShell>

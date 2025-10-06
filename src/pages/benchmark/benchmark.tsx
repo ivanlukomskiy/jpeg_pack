@@ -172,6 +172,7 @@ export function Benchmark() {
           <Flex direction={'column'} gap={'sm'}>
             <Title size={'lg'}>Image</Title>
             <MatRender mat={res} />
+            
           </Flex>
           <Flex direction={'column'} gap={'sm'} style={{width: '300px'}}>
             <Title size={'lg'}>Stats</Title>
