@@ -19,7 +19,6 @@ export class BitsIteratorImpl implements BitsIterator {
   private readonly length;
 
   private constructor(data: Uint8Array, length: number) {
-    console.log('encoding', data, length)
     this.data = data;
     this.length = length;
   }

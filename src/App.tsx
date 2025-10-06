@@ -91,15 +91,15 @@ function App() {
     size *= blocksSide * blocksSide;
 
     const rates = [];
-    for (let i = 0; i < 100; i ++) {
+    for (let i = 0; i < 500; i ++) {
       const original = randomUint8Arr(size);
       const iter = BitsIteratorImpl.fromBytes(original);
       const encoder = new EncoderImpl(cvLib.cv, 8 * blocksSide, 8 * blocksSide, iter, DefaultEncodingConf)
       const [image, res] = encoder.encode();
       const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
       const decoded = decoder.decode(res);
-      console.log('original', original)
-      console.log('decoded', decoded)
+      // console.log('original', original)
+      // console.log('decoded', decoded)
       displayImage(res, canvasRef.current!);
       // setMat(image);
       // setRes(res);
@@ -107,7 +107,7 @@ function App() {
       console.log('err', errorsCount)
       rates.push(errorsCount / size)
     }
-    console.log('median error rate ', getMedian(rates))
+    console.log('median errors fraction', getMedian(rates))
     // const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
     // const [image, res] = encoder.encode();
     // displayImage(res, canvasRef.current!);const [image, res] = encoder.encode();

@@ -40,7 +40,7 @@ export const DefaultEncodingConf: EncodingConf = {
         addition: .25,
     },
     chromaDctToImageTransform: {
-        multiplier: .1,
+        multiplier: .05,
         addition: .5,
     }
 }
