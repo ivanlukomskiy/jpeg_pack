@@ -3,13 +3,14 @@ import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 import { useOpenCV } from './hooks/opencv'
-import { BitsIteratorImpl } from './processing/bits_iter'
+import { BitsIteratorImpl, compareBits, randomUint8Arr } from './processing/bits_iter'
 import { EncoderImpl } from './processing/encoder'
 import { DctConfs, DctConfsChroma, DefaultEncodingConf } from './processing/config'
 import { displayImage } from './processing/image'
 import { Button, Flex, Input, NumberInput, SegmentedControl, Textarea, TextInput, Title } from '@mantine/core'
 import { Mat } from './components/mat/Mat'
 import { DecoderImpl } from './processing/decoder'
+import { BarChart } from '@mantine/charts'
 
 
 function downloadMatAsJpeg(mat, filename = 'image.jpg') {
@@ -37,18 +38,29 @@ function downloadMatAsJpeg(mat, filename = 'image.jpg') {
     document.body.removeChild(link);
 }
 
+function getMedian(numbers: number[]) {
+    if (!numbers.length) return null;
+    const sorted = [...numbers].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 1) {
+        return sorted[middle];
+    }
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 const INP_TYPE_TEXT = 'text';
 const INP_TYPE_RANDOM = 'random';
-const INP_TYPE_DECODE = 'decode';
-const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT];
+const INP_TYPE_BENCHMARK = 'bench';
+const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BENCHMARK];
 
 
 function App() {
   const [mat, setMat] = useState<any>(null)
   const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
-  const [inpType, setInpType] = useState(INP_TYPE_TEXT)
+  const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
   const [inpText, setInpText] = useState("sample")
+  // const [errRateData, setErrRateData] = useState(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cvLib = useOpenCV();
 
@@ -65,6 +77,40 @@ function App() {
     setMat(image);
     setRes(res);
   }, [cvLib, randInputSize, inpType, inpText])
+
+  const benchmark = useCallback(() => {
+    let size = 0;
+    DefaultEncodingConf.chromaConf.forEach(c => {
+      size += c.bitsCapacity * 2;
+    })
+    DefaultEncodingConf.lumaConf.forEach(c => {
+      size += c.bitsCapacity;
+    })
+
+    const rates = [];
+    for (let i = 0; i < 100; i ++) {
+      const original = randomUint8Arr(size);
+      const iter = BitsIteratorImpl.fromBytes(original);
+      const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
+      const [image, res] = encoder.encode();
+      const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
+      const decoded = decoder.decode(res);
+      console.log('original', original)
+      console.log('decoded', decoded)
+      displayImage(res, canvasRef.current!);
+      setMat(image);
+      setRes(res);
+      const errorsCount = compareBits(original, decoded)
+      console.log('err', errorsCount)
+      rates.push(errorsCount / size)
+    }
+    console.log('median error rate ', getMedian(rates))
+    // const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
+    // const [image, res] = encoder.encode();
+    // displayImage(res, canvasRef.current!);const [image, res] = encoder.encode();
+    // setMat(image);
+    // setRes(res);
+  }, [cvLib, randInputSize, inpType, inpText, res])
 
   const decode = useCallback(() => {
     if (!res) return;
@@ -95,9 +141,12 @@ function App() {
         <SegmentedControl color="blue" data={INP_TYPE_OPTIONS} value={inpType} onChange={setInpType} />
         {inpType == INP_TYPE_TEXT && <Textarea autosize label="Text" value={inpText} onChange={onSetInpText} />}
         {inpType == INP_TYPE_RANDOM && <NumberInput label="Size" min={0} hideControls value={randInputSize} onChange={onRandInputSizeChanged}/>}
-        <Button onClick={go}>
+        {(inpType == INP_TYPE_RANDOM || inpType == INP_TYPE_TEXT) && <Button onClick={go}>
           Generate
-        </Button>
+        </Button>}
+        {inpType == INP_TYPE_BENCHMARK && <Button onClick={benchmark}>
+          Start
+        </Button>}
       </Flex>
       <Flex direction={'column'} gap={'sm'}>
         <Title size={'lg'}>Result</Title>

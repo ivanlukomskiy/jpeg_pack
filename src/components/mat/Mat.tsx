@@ -25,7 +25,6 @@ const extractChannelData = (mat: any, channelIndex: number) => {
 
 export function Mat({mat}: Props) {
   return useMemo(() => {
-    console.log('mat', mat)
     if (!mat) return <div>no image</div>
     const channels = [];
 

@@ -3,6 +3,15 @@ export interface BitsIterator {
   nextN(n: number): number | null
 }
 
+export function randomUint8Arr(lenBits: number) {
+    if (lenBits % 8 != 0) throw new Error("length should be multiple of 8")
+    const data = new Uint8Array(Math.ceil(lenBits / 8));
+    for (let i = 0; i < data.length; i++) {
+        data[i] = Math.floor(Math.random() * 256);
+    }
+    return data;
+}
+
 export class BitsIteratorImpl implements BitsIterator {
   private data: Uint8Array;
   private currentByte: number = 0;
@@ -10,78 +19,20 @@ export class BitsIteratorImpl implements BitsIterator {
   private readonly length;
 
   private constructor(data: Uint8Array, length: number) {
-    console.log('encoding', data)
+    console.log('encoding', data, length)
     this.data = data;
     this.length = length;
   }
 
-  // e.g. "101010"
-  static fromBitString(bitsString: string): BitsIteratorImpl {
-    const length = bitsString.length;
-    if (length % 8 != 0) throw new Error("string bits length should be muliple of 8")
-    const data = new Uint8Array(Math.ceil(length / 8));
-    
-    for (let i = 0; i < length; i++) {
-      const bit = bitsString[i];
-      if (bit !== '0' && bit !== '1') {
-        throw new Error(`Invalid bit character: ${bit}`);
-      }
-      
-      const byteIndex = Math.floor(i / 8);
-      const bitIndex = 7 - (i % 8);
-      
-      if (bit === '1') {
-        data[byteIndex] |= (1 << bitIndex);
-      }
-    }
-    
-    return new BitsIteratorImpl(data, length);
-  }
-
-  // e.g., [1, 0, 1, 0]
-  static fromArray(bitsArray: number[]): BitsIteratorImpl {
-    const length = bitsArray.length;
-    const data = new Uint8Array(Math.ceil(length / 8));
-    
-    for (let i = 0; i < length; i++) {
-      const bit = bitsArray[i];
-      if (bit !== 0 && bit !== 1) {
-        throw new Error(`Invalid bit value: ${bit}. Must be 0 or 1.`);
-      }
-      
-      const byteIndex = Math.floor(i / 8);
-      const bitIndex = 7 - (i % 8);
-      
-      if (bit === 1) {
-        data[byteIndex] |= (1 << bitIndex);
-      }
-    }
-    
-    return new BitsIteratorImpl(data, length);
-  }
-
-  // e.g., [1, 0, 1, 0]
   static fromText(text: string): BitsIteratorImpl {
-
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
     const length = data.length * 8;
-    
-    // for (let i = 0; i < length; i++) {
-    //   const bit = bitsArray[i];
-    //   if (bit !== 0 && bit !== 1) {
-    //     throw new Error(`Invalid bit value: ${bit}. Must be 0 or 1.`);
-    //   }
-      
-    //   const byteIndex = Math.floor(i / 8);
-    //   const bitIndex = 7 - (i % 8);
-      
-    //   if (bit === 1) {
-    //     data[byteIndex] |= (1 << bitIndex);
-    //   }
-    // }
-    
     return new BitsIteratorImpl(data, length);
+  }
+
+  static fromBytes(data: Uint8Array): BitsIteratorImpl {
+    return new BitsIteratorImpl(data, data.length * 8);
   }
 
   static async fromFile(file: File): Promise<BitsIteratorImpl> {
@@ -105,12 +56,7 @@ export class BitsIteratorImpl implements BitsIterator {
   }
 
   static random(length: number): BitsIteratorImpl {
-    if (length % 8 != 0) throw new Error("length should be multiple of 8")
-    const data = new Uint8Array(Math.ceil(length / 8));
-    for (let i = 0; i < data.length; i++) {
-        data[i] = Math.floor(Math.random() * 256);
-    }
-    return new BitsIteratorImpl(data, length);
+    return new BitsIteratorImpl(randomUint8Arr(length), length);
   }
 
   next(): number | null {
@@ -148,4 +94,29 @@ export class BitsIteratorImpl implements BitsIterator {
     }
     return result;
   }
+}
+
+export function compareBits(array1: Uint8Array, array2: Uint8Array): number {
+    if (array1.length !== array2.length) {
+        throw new Error('Arrays must be of the same length');
+    }
+
+    let differentBits = 0;
+
+    for (let i = 0; i < array1.length; i++) {
+        const xorResult = array1[i] ^ array2[i];
+        differentBits += countBits(xorResult);
+    }
+
+    return differentBits;
+}
+
+function countBits(byte: number): number {
+    let count = 0;
+    let temp = byte;
+    while (temp > 0) {
+        count += temp & 1;
+        temp >>= 1;
+    }
+    return count;
 }

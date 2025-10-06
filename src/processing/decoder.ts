@@ -33,7 +33,8 @@ export class DecoderImpl implements Decoder {
         this.conf.lumaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity
         })
-        this.res = new Uint8ArrayBuilder(bitsPerBlock * mat.rows / 8 * mat.cols / 8 / 8)
+        const expectedSize = bitsPerBlock * mat.rows / 8 * mat.cols / 8 / 8;
+        this.res = new Uint8ArrayBuilder(expectedSize)
         
         let ycrcb = new this.cv.Mat();
         this.cv.cvtColor(mat, ycrcb, this.cv.COLOR_RGB2YCrCb);
