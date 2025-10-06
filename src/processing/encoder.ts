@@ -49,6 +49,7 @@ export class EncoderImpl implements Encoder {
         const dctMat = new this.cv.Mat(8, 8, this.cv.CV_32F);
         dctMat.setTo(new this.cv.Scalar(0))
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
+        const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
         conf.forEach((c: DctCoefConf) => {
             const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
             const max = (1 << c.bitsCapacity) - 1;
@@ -86,14 +87,14 @@ export class EncoderImpl implements Encoder {
 
                 // fixme maybe round instead??
                 let pixelValue = Math.round(blockImage.floatPtr(y, x)[0] 
-                    * this.conf.dctToImageTransform.multiplier 
-                    + this.conf.dctToImageTransform.addition);
+                    * tranform.multiplier 
+                    + tranform.addition);
                 pixelValue = Math.max(0, Math.min(255, pixelValue))
 
                 pixelValue = blockImage.floatPtr(y, x)[0]
                 pixelValue = pixelValue
-                    * this.conf.dctToImageTransform.multiplier 
-                    + this.conf.dctToImageTransform.addition;
+                    * tranform.multiplier 
+                    + tranform.addition;
 
                 // if (this.ch == 0) {
                 //     const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
@@ -101,7 +102,7 @@ export class EncoderImpl implements Encoder {
                 //     console.log('blk value x=', x, ', y=', y, ': ', blockImage.floatPtr(y, x)[0], ' -> ', reverse)
                 // }
 
-                if (this.ch !== 0) continue;
+                // if (this.ch !== 0) continue;
                 this.image.floatPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
                 // console.log('put ', pixelValue, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }

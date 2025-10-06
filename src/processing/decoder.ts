@@ -53,11 +53,12 @@ export class DecoderImpl implements Decoder {
 
     private decodeNextBlock() {
         const block = new this.cv.Mat(8, 8, this.cv.CV_32F);
+        const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
         
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
                 let val = this.image.floatPtr(this.y + y, this.x + x)[this.ch];
-                val = (val - this.conf.dctToImageTransform.addition) / this.conf.dctToImageTransform.multiplier;
+                val = (val - tranform.addition) / tranform.multiplier;
 
                 block.floatPtr(y, x)[0] = val;
                 if (this.ch == 0) {
