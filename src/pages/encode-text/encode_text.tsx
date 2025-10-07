@@ -7,6 +7,7 @@ import { DecoderImpl } from "../../processing/decoder";
 import { useCallback, useMemo, useState } from "react";
 import { useOpenCV } from "../../hooks/opencv";
 import { sampleText } from "../../processing/sample_text";
+import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
 
 export function EncodeText() {
     const [res, setRes] = useState<any>(null)
@@ -36,6 +37,13 @@ export function EncodeText() {
           size += c.bitsCapacity;
         })
         size *= blocksSide * blocksSide;
+
+        const textEnc = new TextEncoder();
+        const data = textEnc.encode(inpText);
+        const withCorrection = addErrorCorrection(data);
+        withCorrection[2] = 0;
+        const afterErrCorrection = decodeErrorCorrection(withCorrection)
+        console.log('with correction', withCorrection, 'without', data, 'after', afterErrCorrection)
     
         const iter = BitsIteratorImpl.fromText(inpText);
         const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)

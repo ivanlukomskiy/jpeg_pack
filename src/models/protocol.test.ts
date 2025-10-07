@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { kek } from './protocol'
+import { kek } from '../processing/reed_solomon/adapter'
 
 test('test kek', () => {
   const res = kek();

@@ -11,6 +11,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@bnb-chain/reed-solomon": "^1.1.4",
     "@mantine/charts": "^8.3.3",
     "@mantine/core": "^8.3.3",
     "@mantine/hooks": "^8.3.3",
