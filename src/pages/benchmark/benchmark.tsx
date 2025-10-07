@@ -12,7 +12,7 @@ import { BarChart } from "@mantine/charts";
 async function jpegRoundTrip(cv, rgb8, quality = 0.95) {
   // --- ENCODE via Canvas ---
   // 1) RGB -> RGBA (for canvas)
-  let rgba = new cv.Mat();
+  const rgba = new cv.Mat();
   cv.cvtColor(rgb8, rgba, cv.COLOR_RGB2RGBA);
 
   // 2) Draw to a canvas
@@ -41,10 +41,10 @@ async function jpegRoundTrip(cv, rgb8, quality = 0.95) {
 
   // 5) Read pixels back to Mat (RGBA) without cv.imread
   const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
-  let rgbaDec = cv.matFromImageData(imageData);
+  const rgbaDec = cv.matFromImageData(imageData);
 
   // 6) RGBA -> RGB Mat
-  let rgb8Decoded = new cv.Mat();
+  const rgb8Decoded = new cv.Mat();
   cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
   rgbaDec.delete();
 
@@ -100,7 +100,7 @@ export function Benchmark() {
           const encoder = new EncoderImpl(cvLib.cv, 8 * blocksPerAxis, 8 * blocksPerAxis, iter, DefaultEncodingConf)
           const [image, res] = encoder.encode();
     
-          let {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, jpegQuality);
+          const {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, jpegQuality);
     
           const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
           const decoded = decoder.decode(rgb8Decoded);

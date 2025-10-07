@@ -67,7 +67,7 @@ function ensureFloatSingle(src, center=false) {
 
 // Helper: reverse of ensureFloatSingle (optionally) un-center by +128 and convert to 8U
 function to8U(mat32f, uncenter=false) {
-  let out = new cv.Mat();
+  const out = new cv.Mat();
   if (uncenter) {
     const shift = new cv.Mat(mat32f.rows, mat32f.cols, cv.CV_32F, new cv.Scalar(128));
     cv.add(mat32f, shift, mat32f);

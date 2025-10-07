@@ -29,15 +29,15 @@ export class EncoderImpl implements Encoder {
             this.encodeNextBlock();
         }
 
-        let rgb32 = new this.cv.Mat();
+        const rgb32 = new this.cv.Mat();
         this.cv.cvtColor(this.image, rgb32, this.cv.COLOR_YCrCb2RGB)
         this.cv.min(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [1,1,1,0]), rgb32);
         this.cv.max(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [0,0,0,0]), rgb32);
 
-        let rgb8 = new this.cv.Mat();
+        const rgb8 = new this.cv.Mat();
         rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
 
-        let ycrcb8 = new this.cv.Mat();
+        const ycrcb8 = new this.cv.Mat();
         this.image.convertTo(ycrcb8, this.cv.CV_8U, 255);
 
         return [ycrcb8, rgb8];

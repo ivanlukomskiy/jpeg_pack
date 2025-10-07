@@ -35,10 +35,10 @@ export class DecoderImpl implements Decoder {
         const expectedSize = bitsPerBlock * rgb8uchar.rows / 8 * rgb8uchar.cols / 8 / 8;
         this.res = new Uint8ArrayBuilder(expectedSize)
 
-        let rgb32float = new this.cv.Mat();
+        const rgb32float = new this.cv.Mat();
         rgb8uchar.convertTo(rgb32float, this.cv.CV_32F, 1/255.0);
         
-        let ycrcb = new this.cv.Mat();
+        const ycrcb = new this.cv.Mat();
         this.cv.cvtColor(rgb32float, ycrcb, this.cv.COLOR_RGB2YCrCb);
         this.image = ycrcb;
 
