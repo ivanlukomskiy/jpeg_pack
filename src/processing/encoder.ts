@@ -25,7 +25,6 @@ export class EncoderImpl implements Encoder {
     }
 
     public encode() {
-        // console.log('encoding')
         while (this.ch < 3) {
             this.encodeNextBlock();
         }
@@ -42,7 +41,6 @@ export class EncoderImpl implements Encoder {
         this.image.convertTo(ycrcb8, this.cv.CV_8U, 255);
 
         return [ycrcb8, rgb8];
-        // return [this.image, null];
     }
 
     private encodeNextBlock() {
@@ -53,61 +51,24 @@ export class EncoderImpl implements Encoder {
         conf.forEach((c: DctCoefConf) => {
             const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
             const max = (1 << c.bitsCapacity) - 1;
-            // console.log('byte', byte, 'capacity', c.bitsCapacity, 'max', max)
-            // dctMat.floatPtr(c.x, c.y)[0] = 0.33;
-
             dctMat.floatPtr(c.y, c.x)[0] = byte / max;
-            // if (this.ch == 0) console.log('dct', c.x, c.y, this.ch, byte / max)
         })
 
-        // for (let i = 0; i < 8; i++) {
-        //     for (let j = 0; j < 8; j++) {
-        //         if (this.ch != 0) continue;
-        //         console.log('dct x=', j, ', y=', i, ', ch=', this.ch, ': ', dctMat.floatPtr(i, j)[0])
-        //     }
-        // }
-
-        // const blockImage = new this.cv.Mat(8, 8, this.cv.CV_32F);
         const blockImage = idct8x8Mat(this.cv, dctMat);
 
-        for (let i = 0; i < 8; i++) {
-            for (let j = 0; j < 8; j++) {   
-                // console.log('block image floats', i, j, blockImage.floatAt(i, j))
-                // blockImage.floatPtr(i, j)[0] *= 255 // fixme multiplier should be configurable
-            }
-        }
-
-        // const blockImageUint8 = new this.cv.Mat(8, 8, this.cv.CV_8U);
-        // blockImage.convertTo(blockImageUint8, this.cv.CV_8U);
-        
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
-                // const pixelValue = blockImageUint8.ucharPtr(i, j)[0];
-                // fixme precompute these coefficients
-
                 let pixelValue = blockImage.floatPtr(y, x)[0]
                 pixelValue = pixelValue
                     * tranform.multiplier 
                     + tranform.addition;
                 
                 if (conf.length == 0) pixelValue = 0.5;
-
-                // if (this.ch == 0) {
-                //     const reverse = (pixelValue - this.conf.dctToImageTransform.addition) 
-                //     / this.conf.dctToImageTransform.multiplier;
-                //     console.log('blk value x=', x, ', y=', y, ': ', blockImage.floatPtr(y, x)[0], ' -> ', reverse)
-                // }
-
-                // if (this.ch !== 0) continue;
                 this.image.floatPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
-                // console.log('put ', pixelValue, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }
         }
-
-        // console.log('block encoded')
         
         blockImage.delete();
-        // blockImageUint8.delete();
 
         this.x += 8
         if (this.x >= this.image.cols) {

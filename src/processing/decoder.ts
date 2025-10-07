@@ -6,7 +6,6 @@ export interface Decoder {
     decode: (mat) => any;
 }
 
-
 export class DecoderImpl implements Decoder {
     private image: any;
     private conf: EncodingConf;
@@ -23,7 +22,6 @@ export class DecoderImpl implements Decoder {
     }
 
     decode(rgb8uchar) {
-        // console.log('decoding')
         if (rgb8uchar.rows % 8 != 0 || rgb8uchar.cols % 8 != 0) {
             throw new Error(`image dimensions should be multiples of 8; got ${rgb8uchar.rows}x${rgb8uchar.cols}`)
         }
@@ -46,7 +44,6 @@ export class DecoderImpl implements Decoder {
 
         while (this.ch < 3) {
             this.decodeNextBlock();
-            // console.log("block decoded")
         }
         return this.res.toUint8Array();
     }
@@ -61,18 +58,6 @@ export class DecoderImpl implements Decoder {
                 val = (val - tranform.addition) / tranform.multiplier;
 
                 block.floatPtr(y, x)[0] = val;
-                if (this.ch == 0) {
-                    // console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', val)
-                    // console.log('blk value x=', x, ', y=', y, ', ch=', this.ch, ': ', this.image.ucharPtr(this.y + y, this.x + x)[this.ch])
-                }
-                
-
-                // let pixelValue = Math.floor(blockImage.floatPtr(i, j)[0] 
-                //     * this.conf.dctToImageTransform.multiplier 
-                //     + this.conf.dctToImageTransform.addition);
-                // pixelValue = Math.max(0, Math.min(255, pixelValue))
-                // this.image.ucharPtr(this.y + i, this.x + j)[this.ch] = pixelValue;
-                // console.log('put ', val, 'to', this.x + j, ' ', this.y + i, ' ', this.ch)
             }
         }
 
@@ -84,13 +69,10 @@ export class DecoderImpl implements Decoder {
             const max = (1 << c.bitsCapacity) - 1;
             const dctCoef = dctMat.floatAt(c.y, c.x);
             const value = Math.round(dctCoef * max);
-            // if (this.ch == 0) console.log('dct', c.x, c.y, this.ch, dctCoef)
             for (let i = c.bitsCapacity - 1; i >= 0; i--) {
                 const bitValue = (value >> i) & 1;
                 this.res?.addBit(bitValue);
-                // console.log('bit', bitValue)
             }
-            // console.log('dct', c.x, c.y, this.ch, 'float: ', dctCoef, 'max: ', max, 'val:', value)
         })
 
         this.x += 8
