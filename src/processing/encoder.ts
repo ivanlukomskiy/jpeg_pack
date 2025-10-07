@@ -1,6 +1,6 @@
 import type { BitsIterator } from "./bits_iter";
 import type { DctCoefConf, EncodingConf } from "./config";
-import { idct8x8Mat } from "./dct";
+import { DctCalc } from "./dct";
 
 export interface Encoder {
     encode: () => any;
@@ -25,9 +25,12 @@ export class EncoderImpl implements Encoder {
     }
 
     public encode() {
+        const dctCalc = new DctCalc(this.cv);
+        dctCalc.init()
         while (this.ch < 3) {
-            this.encodeNextBlock();
+            this.encodeNextBlock(dctCalc);
         }
+        dctCalc.cleanup();
 
         const rgb32 = new this.cv.Mat();
         this.cv.cvtColor(this.image, rgb32, this.cv.COLOR_YCrCb2RGB)
@@ -43,7 +46,7 @@ export class EncoderImpl implements Encoder {
         return [ycrcb8, rgb8];
     }
 
-    private encodeNextBlock() {
+    private encodeNextBlock(dctCalc: DctCalc) {
         const dctMat = new this.cv.Mat(8, 8, this.cv.CV_32F);
         dctMat.setTo(new this.cv.Scalar(0))
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
@@ -54,7 +57,7 @@ export class EncoderImpl implements Encoder {
             dctMat.floatPtr(c.y, c.x)[0] = byte / max;
         })
 
-        const blockImage = idct8x8Mat(this.cv, dctMat);
+        const blockImage = dctCalc.idct8x8Mat(dctMat);
 
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {

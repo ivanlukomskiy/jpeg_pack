@@ -1,5 +1,5 @@
 import type { DctCoefConf, EncodingConf } from "./config";
-import { dct8x8Mat } from "./dct";
+import { DctCalc } from "./dct";
 import { Uint8ArrayBuilder } from "./uint_array_builder";
 
 export interface Decoder {
@@ -41,13 +41,16 @@ export class DecoderImpl implements Decoder {
         this.cv.cvtColor(rgb32float, ycrcb, this.cv.COLOR_RGB2YCrCb);
         this.image = ycrcb;
 
+        const dctCalc = new DctCalc(this.cv);
+        dctCalc.init();
         while (this.ch < 3) {
-            this.decodeNextBlock();
+            this.decodeNextBlock(dctCalc);
         }
+        dctCalc.cleanup();
         return this.res.toUint8Array();
     }
 
-    private decodeNextBlock() {
+    private decodeNextBlock(dctCalc: DctCalc) {
         const block = new this.cv.Mat(8, 8, this.cv.CV_32F);
         const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
         
@@ -62,7 +65,7 @@ export class DecoderImpl implements Decoder {
 
 
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-        const dctMat = dct8x8Mat(this.cv, block);
+        const dctMat = dctCalc.dct8x8Mat(block);
 
         conf.forEach((c: DctCoefConf) => {
             const max = (1 << c.bitsCapacity) - 1;
