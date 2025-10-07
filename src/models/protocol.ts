@@ -5,7 +5,7 @@
 // 5. data length
 // 6. data symbols
 
-import { addErrorCorrection, decodeErrorCorrection } from "../processing/reed_solomon/adapter";
+import { addErrorCorrection, BlockSize, decodeErrorCorrection } from "../processing/reed_solomon/adapter";
 import { byteArrayToInt, intToByteArray, joinUint8Arrays } from "../processing/utils";
 
 const TYPE_FILE = 1;
@@ -24,12 +24,16 @@ export async function encodeFile(filename: string, data: Uint8Array) {
     if (filenameBytes.length > 255) throw new Error('filename too long')
     const filenameSize = new Uint8Array([filenameBytes.length]);
     const dataLength = intToByteArray(data.length)
-
     const payloadWithoutHash = joinUint8Arrays([type, filenameSize, filenameBytes, dataLength, data])
     const hash = await get8ByteHash(payloadWithoutHash);
     const payloadWithHash = joinUint8Arrays([hash, payloadWithoutHash]);
     const withRedundancy = addErrorCorrection(payloadWithHash);
     return withRedundancy;
+}
+
+export function getApproxEffectiveCapacityBytes(fullSizeBytes: number): number {
+    const afterErrorCorrection = BlockSize / 255. * fullSizeBytes;
+    return Math.floor(afterErrorCorrection - 8 - 1 - 20 - 4);
 }
 
 export async function decodeFile(raw: Uint8Array) {

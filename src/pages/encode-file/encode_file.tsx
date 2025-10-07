@@ -1,5 +1,5 @@
 import { Button, FileButton, FileInput, Flex, NumberInput, SegmentedControl, Textarea, Title, Typography } from "@mantine/core";
-import { MatRender } from "../../components/mat_render/MatRender";
+import { downloadMatAsJpeg, MatRender } from "../../components/mat_render/MatRender";
 import { DefaultEncodingConf } from "../../processing/config";
 import { BitsIteratorImpl, compareBits, randomUint8Arr } from "../../processing/bits_iter";
 import { EncoderImpl } from "../../processing/encoder";
@@ -8,7 +8,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useOpenCV } from "../../hooks/opencv";
 import { sampleText } from "../../processing/sample_text";
 import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
-import { decodeFile, encodeFile } from "../../models/protocol";
+import { decodeFile, encodeFile, getApproxEffectiveCapacityBytes } from "../../models/protocol";
 
 export function fileToUint8Array(file: File): Promise<Uint8Array> {
     return new Promise((resolve, reject) => {
@@ -27,6 +27,23 @@ export function fileToUint8Array(file: File): Promise<Uint8Array> {
         reader.readAsArrayBuffer(file);
     });
 }
+function generateTimestampedId() {
+    // Get current date in YYYY-MM-DD format
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD"
+    
+    // Generate random 8-character alphanumeric string
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 8; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    return `${dateStr}-${randomStr}`;
+}
+
+// Usage
+const id = generateTimestampedId(); // "2024-01-15-aB3d9fG7"
 
 // rgb8: CV_8UC3 (RGB), range 0..255
 async function decodeJpeg(cv, jpegBytes: Uint8Array) {
@@ -95,7 +112,8 @@ function downloadFile(filename: string, data: Uint8Array) {
 }
 
 export function EncodeFile() {
-    const [file, setFile] = useState<File | null>(null);
+    const [encFile, setEncFile] = useState<File | null>(null);
+    const [decFile, setDecFile] = useState<File | null>(null);
     const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
     const [w, setW] = useState(320);
@@ -114,7 +132,7 @@ export function EncodeFile() {
     }, [])
 
     const encode = useCallback(async () => {
-        if (!file) return;
+        if (!encFile) return;
         const blocksSide = 8;
         let size = 0;
         DefaultEncodingConf.chromaConf.forEach(c => {
@@ -125,8 +143,8 @@ export function EncodeFile() {
         })
         size *= blocksSide * blocksSide;
 
-        const data = await fileToUint8Array(file);
-        const encoded = await encodeFile(file.name, data)
+        const data = await fileToUint8Array(encFile);
+        const encoded = await encodeFile(encFile.name, data)
     
         const iter = BitsIteratorImpl.fromBytes(encoded)
         const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)
@@ -138,16 +156,17 @@ export function EncodeFile() {
         //   const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
         //   const decoded = decoder.decode(rgb8Decoded);
           setRes(res);
-          console.log('encoded')
+        //   console.log('encoded')
+          downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg");
      
         // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, file])
+      }, [cvLib, res, inpText, w, h, encFile])
 
 
 
     const decode = useCallback(async () => {
-        if (!file) return;
-        const data = await fileToUint8Array(file);
+        if (!decFile) return;
+        const data = await fileToUint8Array(decFile);
         const {rgb8Decoded} = await decodeJpeg(cvLib.cv, data);
 
         const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
@@ -156,10 +175,10 @@ export function EncodeFile() {
         console.log(filename)
         downloadFile(filename, fileData)
           setRes(rgb8Decoded);
-          console.log('decoded')
+        //   console.log('decoded')
      
         // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, file])
+      }, [cvLib, res, inpText, w, h, decFile])
 
     const onSetW = useCallback((e) => {
         setW(e);
@@ -176,6 +195,10 @@ export function EncodeFile() {
         return w / 8 * h / 8 * bytesPerBlock;
     }, [w, h])
 
+    const approxEffectiveCapacityBytes = useMemo(() => {
+        return getApproxEffectiveCapacityBytes(capacityBytes);
+    }, [capacityBytes]);
+
     const usedBytes = useMemo(() => {
         const encoder = new TextEncoder();
         const data = encoder.encode(inpText);
@@ -183,25 +206,34 @@ export function EncodeFile() {
     }, [inpText])
     
       return (
-        <Flex direction={'row'} gap={'xl'}>
+        <Flex direction={'row'} gap={'xl'} justify={'center'}>
           {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Encode</Title>
             <NumberInput label={'width'} hideControls min={8} max={1080} value={w} onChange={onSetW} />
             <NumberInput label={'height'} hideControls min={8} max={1080} value={h} onChange={onSetH} />
-            {file?.name}
-            <FileButton onChange={setFile} >
-            {(props) => <Button {...props}>Choose file</Button>}
+            {encFile?.name}
+            <FileButton onChange={setEncFile} >
+            {(props) => <Button {...props}>Choo se file</Button>}
             </FileButton>
-            <Button onClick={encode} disabled={!file}>
+            <Button onClick={encode} disabled={!encFile}>
               Encode
             </Button>
           </Flex>}
+          {!res && <Flex direction={'column'} gap={'sm'} style={{paddingTop: '55px', alignItems: 'flex-start', marginRight: '60px'}}>
+            {/* <Title size={'lg'}>Details</Title> */}
+            <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
+            <Typography>Effective: ~{(approxEffectiveCapacityBytes / 1024).toFixed(2)} KB</Typography>
+            {/* <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography> */}
+            <Typography>Bytes per block: {bytesPerBlock}</Typography>
+          </Flex>}
+
           {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Decode</Title>
-            <FileButton onChange={setFile} accept="image/png,image/jpeg">
+            {decFile?.name}
+            <FileButton onChange={setDecFile} accept="image/png,image/jpeg">
             {(props) => <Button {...props}>Choose image</Button>}
             </FileButton>
-            <Button onClick={decode} disabled={!file}>
+            <Button onClick={decode} disabled={!decFile}>
               Decode
             </Button>
           </Flex>}
@@ -210,12 +242,6 @@ export function EncodeFile() {
             <MatRender mat={res} />
           </Flex>}
           
-          <Flex direction={'column'} gap={'sm'}>
-            <Title size={'lg'}>Details</Title>
-            <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
-            {/* <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography> */}
-            <Typography>Bytes per block: {bytesPerBlock}</Typography>
-          </Flex>
         </Flex>
       )
 }

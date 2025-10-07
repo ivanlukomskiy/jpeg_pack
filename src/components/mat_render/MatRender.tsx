@@ -54,7 +54,7 @@ function displayImage(mat: any, canvas: HTMLCanvasElement) {
 }
 
 
-function downloadMatAsJpeg(mat, filename = 'image.jpg') {
+export function downloadMatAsJpeg(mat, filename = 'image.jpg') {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
