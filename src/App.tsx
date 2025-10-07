@@ -40,10 +40,10 @@ function App() {
       </AppShell.Navbar> */}
       <AppShell.Main>
         <Routes>
-        <Route path="/" element={<EncodeFile />} />
-        <Route path="/text" element={<EncodeText />} />
-        <Route path="/benchmark" element={<Benchmark />} />
-        <Route path="/block" element={<OneBlockTest />} />
+        <Route path="/imgen" element={<EncodeFile />} />
+        <Route path="/imgen/text" element={<EncodeText />} />
+        <Route path="/imgen/benchmark" element={<Benchmark />} />
+        <Route path="/imgen/block" element={<OneBlockTest />} />
       </Routes>
       </AppShell.Main>
     </AppShell>
