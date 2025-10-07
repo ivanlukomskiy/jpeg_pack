@@ -53,23 +53,6 @@ export class DctCalc {
     tmp.delete();
   }
 
-  // Helper: ensure CV_32F single-channel; (optionally) center by -128 and return a new Mat
-  // , center=false
- private ensureFloatSingle(src: any) {
-  let gray = src;
-  let needToDeleteGray = false;
-  if (src.channels() > 1) {
-    gray = new this.cv.Mat();
-    this.cv.cvtColor(src, gray, this.cv.COLOR_RGBA2GRAY); // or COLOR_BGR2GRAY based on your input
-    needToDeleteGray = true;
-  }
-  const f32 = new this.cv.Mat();
-  gray.convertTo(f32, this.cv.CV_32F);
-  if (needToDeleteGray) gray.delete();
-  return f32;
-}
-
-// Core: process single-channel CV_32F image in 8x8 blocks with a given block op (dctBlock8/idctBlock8)
 private processBlocks8(src32f, inverse: boolean) {
   if (src32f.type() !== this.cv.CV_32F || src32f.channels() !== 1) {
     throw new Error("processBlocks8 expects single-channel CV_32F input");
@@ -110,48 +93,11 @@ private processBlocks8(src32f, inverse: boolean) {
   return dst32f;
 }
 
-// Public: DCT over 8x8 blocks.
-// - If input is multi-channel, it will be split and processed per channel (keeping CV_32F).
-// - center: subtract 128 (JPEG-style) before DCT for 8-bit imagery.
-
-// , {center=false, padToMultipleOf8=false} = {}
  public dct8x8Mat(srcMat) {
-  const f32 = this.ensureFloatSingle(srcMat);
-  const dst = this.processBlocks8(f32, false);
-  f32.delete();
-  
-  return dst;
+  return this.processBlocks8(srcMat, false);
 }
 
-// Public: inverse DCT over 8x8 blocks.
-// - If input had center=true during DCT for 8-bit images, pass uncenter=true to add back +128 after IDCT.
-// - Returns CV_32F by default.
-// {uncenter=false} = {}
  public idct8x8Mat(srcMat) {
-  let dst;
-  if (srcMat.channels() === 1) {
-    const f32 = (srcMat.type() === this.cv.CV_32F) ? srcMat.clone() : (() => {
-      const t = new this.cv.Mat(); srcMat.convertTo(t, this.cv.CV_32F); return t;
-    })();
-    dst = this.processBlocks8(f32, true);
-    f32.delete();
-  } else {
-    const planes = new this.cv.MatVector();
-    this.cv.split(srcMat, planes);
-    const outPlanes = new this.cv.MatVector();
-    for (let c = 0; c < planes.size(); c++) {
-      const f32 = new this.cv.Mat();
-      planes.get(c).convertTo(f32, this.cv.CV_32F);
-      const idctCh = this.processBlocks8(f32, true);
-      outPlanes.push_back(idctCh);
-      f32.delete(); idctCh.delete();
-    }
-    dst = new this.cv.Mat();
-    this.cv.merge(outPlanes, dst);
-    for (let i = 0; i < planes.size(); i++) planes.get(i).delete();
-    planes.delete();
-    outPlanes.delete();
-  }
-  return dst; // CV_32F
+  return this.processBlocks8(srcMat, true);
 }
 }

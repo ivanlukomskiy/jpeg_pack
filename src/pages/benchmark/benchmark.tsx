@@ -70,7 +70,7 @@ interface PercentilePoint {
 
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
-    const [iterations, setIterations] = useState(50);
+    const [iterations, setIterations] = useState(1);
     const [jpegQuality, setJpegQuality] = useState(95);
     const [blocksPerAxis, setBlocksPerAxis] = useState(8);
     const [progress, setProgress] = useState<number | null>(null);
@@ -115,7 +115,7 @@ export function Benchmark() {
           setProgress((i + 1) / iterations);
         }
         normalizeErrorSources(acc);
-        setErrByDctPos(acc);
+        setErrByDctPos(acc); // fixme looks like it gets calculated wrong, need to inverse-test it
         console.log('acc', acc)
         setProgress(null);
       }, [cvLib, res, jpegQuality, iterations, blocksPerAxis])
