@@ -1,7 +1,7 @@
 // ===== DCT/IDCT for OpenCV.js (8x8 block JPEG-style) =====
 
 // Build an orthonormal DCT-II matrix of size N
-function buildDCTMatrix(N) {
+function buildDCTMatrix(cv, N) {
   const C = new cv.Mat(N, N, cv.CV_32F);
   const s = Math.sqrt(2.0 / N);
   for (let u = 0; u < N; u++) {
@@ -15,18 +15,18 @@ function buildDCTMatrix(N) {
 }
 
 // Precompute DCT basis for 8x8
-let cv = null // fixme
+// let cv = null // fixme
 let DCT8 = null;
 let DCT8T = null;
-function precomputeDCTBasis() {
-    DCT8 = buildDCTMatrix(8);
+function precomputeDCTBasis(cv) {
+    DCT8 = buildDCTMatrix(cv, 8);
     DCT8T = new cv.Mat();
     cv.transpose(DCT8, DCT8T);
 }
 
 
 // Perform DCT on one 8x8 single-channel block (src8 -> dst8), both CV_32F
-function dctBlock8(src8, dst8) {
+function dctBlock8(cv, src8, dst8) {
   // tmp = DCT8 * src8
   const tmp = new cv.Mat();
   cv.gemm(DCT8, src8, 1.0, new cv.Mat(), 0.0, tmp);   // tmp = DCT8 * src
@@ -36,7 +36,7 @@ function dctBlock8(src8, dst8) {
 }
 
 // Perform inverse DCT on one 8x8 single-channel block (src8 -> dst8), both CV_32F
-function idctBlock8(src8, dst8) {
+function idctBlock8(cv, src8, dst8) {
   // tmp = DCT8^T * src8
   const tmp = new cv.Mat();
   cv.gemm(DCT8T, src8, 1.0, new cv.Mat(), 0.0, tmp);  // tmp = Ct * src
@@ -46,7 +46,7 @@ function idctBlock8(src8, dst8) {
 }
 
 // Helper: ensure CV_32F single-channel; (optionally) center by -128 and return a new Mat
-function ensureFloatSingle(src, center=false) {
+function ensureFloatSingle(cv, src, center=false) {
   let gray = src;
   let needToDeleteGray = false;
   if (src.channels() > 1) {
@@ -66,7 +66,7 @@ function ensureFloatSingle(src, center=false) {
 }
 
 // Helper: reverse of ensureFloatSingle (optionally) un-center by +128 and convert to 8U
-function to8U(mat32f, uncenter=false) {
+function to8U(cv, mat32f, uncenter=false) {
   const out = new cv.Mat();
   if (uncenter) {
     const shift = new cv.Mat(mat32f.rows, mat32f.cols, cv.CV_32F, new cv.Scalar(128));
@@ -83,7 +83,7 @@ function to8U(mat32f, uncenter=false) {
 }
 
 // Core: process single-channel CV_32F image in 8x8 blocks with a given block op (dctBlock8/idctBlock8)
-function processBlocks8(src32f, blockOp) {
+function processBlocks8(cv, src32f, blockOp) {
   if (src32f.type() !== cv.CV_32F || src32f.channels() !== 1) {
     throw new Error("processBlocks8 expects single-channel CV_32F input");
   }
@@ -105,7 +105,7 @@ function processBlocks8(src32f, blockOp) {
 
       // copy to compact blocks to ensure contiguous memory
       srcROI.copyTo(srcBlock);
-      blockOp(srcBlock, dstBlock);
+      blockOp(cv, srcBlock, dstBlock);
       dstBlock.copyTo(dstROI);
 
       // clean roi headers
@@ -122,9 +122,8 @@ function processBlocks8(src32f, blockOp) {
 // Public: DCT over 8x8 blocks.
 // - If input is multi-channel, it will be split and processed per channel (keeping CV_32F).
 // - center: subtract 128 (JPEG-style) before DCT for 8-bit imagery.
-export function dct8x8Mat(cv_, srcMat, {center=false, padToMultipleOf8=false} = {}) {
-    cv = cv_;
-    precomputeDCTBasis()
+export function dct8x8Mat(cv, srcMat, {center=false, padToMultipleOf8=false} = {}) {
+    precomputeDCTBasis(cv)
   let src = srcMat;
 
   // Optional zero padding to next multiple of 8
@@ -141,8 +140,8 @@ export function dct8x8Mat(cv_, srcMat, {center=false, padToMultipleOf8=false} = 
 
   let dst;
   if (src.channels() === 1) {
-    const f32 = ensureFloatSingle(src, center);
-    dst = processBlocks8(f32, dctBlock8);
+    const f32 = ensureFloatSingle(cv, src, center);
+    dst = processBlocks8(cv, f32, dctBlock8);
     f32.delete();
   } else {
     // Split, convert each to CV_32F, process, and merge back (still CV_32F)
@@ -157,7 +156,7 @@ export function dct8x8Mat(cv_, srcMat, {center=false, padToMultipleOf8=false} = 
         cv.subtract(f32, shift, f32);
         shift.delete();
       }
-      const dctCh = processBlocks8(f32, dctBlock8);
+      const dctCh = processBlocks8(cv, f32, dctBlock8);
       outPlanes.push_back(dctCh);
       f32.delete(); dctCh.delete(); // push_back makes its own header copy
     }
@@ -176,15 +175,15 @@ export function dct8x8Mat(cv_, srcMat, {center=false, padToMultipleOf8=false} = 
 // Public: inverse DCT over 8x8 blocks.
 // - If input had center=true during DCT for 8-bit images, pass uncenter=true to add back +128 after IDCT.
 // - Returns CV_32F by default. Convert to 8U with to8U() if you want.
-export function idct8x8Mat(cv_, srcMat, {uncenter=false} = {}) {
-    cv = cv_;
-    precomputeDCTBasis()
+export function idct8x8Mat(cv, srcMat, {uncenter=false} = {}) {
+
+    precomputeDCTBasis(cv)
   let dst;
   if (srcMat.channels() === 1) {
     const f32 = (srcMat.type() === cv.CV_32F) ? srcMat.clone() : (() => {
       const t = new cv.Mat(); srcMat.convertTo(t, cv.CV_32F); return t;
     })();
-    dst = processBlocks8(f32, idctBlock8);
+    dst = processBlocks8(cv, f32, idctBlock8);
     if (uncenter) {
       const shift = new cv.Mat(dst.rows, dst.cols, cv.CV_32F, new cv.Scalar(128));
       cv.add(dst, shift, dst);
@@ -198,7 +197,7 @@ export function idct8x8Mat(cv_, srcMat, {uncenter=false} = {}) {
     for (let c = 0; c < planes.size(); c++) {
       const f32 = new cv.Mat();
       planes.get(c).convertTo(f32, cv.CV_32F);
-      const idctCh = processBlocks8(f32, idctBlock8);
+      const idctCh = processBlocks8(cv, f32, idctBlock8);
       if (uncenter) {
         const shift = new cv.Mat(idctCh.rows, idctCh.cols, cv.CV_32F, new cv.Scalar(128));
         cv.add(idctCh, shift, idctCh);
@@ -215,15 +214,3 @@ export function idct8x8Mat(cv_, srcMat, {uncenter=false} = {}) {
   }
   return dst; // CV_32F
 }
-
-// ===== Example usage =====
-// Assume `src8u` is an 8-bit single-channel or 3-channel cv.Mat.
-// const dct = dct8x8Mat(src8u, {center:true, padToMultipleOf8:true}); // CV_32F coefficients
-// ... (you can quantize/zigzag/etc here) ...
-// const rec32f = idct8x8Mat(dct, {uncenter:true});
-// const rec8u = to8U(rec32f, false); // already uncentered above
-// cv.imshow('canvasOutput', rec8u);
-// dct.delete(); rec32f.delete(); rec8u.delete();
-
-// ===== Cleanup precomputed matrices if you’re done entirely =====
-// DCT8.delete(); DCT8T.delete();

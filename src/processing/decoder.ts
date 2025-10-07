@@ -14,7 +14,6 @@ export class DecoderImpl implements Decoder {
     private y: number = 0;
     private ch: number = 0;
     private res?: Uint8ArrayBuilder;
-    private bitIdx = 0;
 
     constructor(cv: any, conf: EncodingConf) {
         this.conf = conf;
