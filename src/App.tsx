@@ -5,6 +5,7 @@ import { Benchmark } from './pages/benchmark/benchmark'
 import { AppShell, Burger, Flex, NavLink } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { EncodeText } from './pages/encode-text/encode_text'
+import { EncodeFile } from './pages/encode-file/encode_file'
 
 
 function App() {
@@ -28,7 +29,8 @@ function App() {
           size="sm"
         /> */}
         <Flex direction={'row'} gap={'xl'} style={{padding: '5px 20px'}}>
-          <a href="/">encode</a>
+          <a href="/">file</a>
+          <a href="/text">text</a>
           <a href="/benchmark">benchmark</a>
           <a href="/block">single block</a>
         </Flex>
@@ -39,7 +41,8 @@ function App() {
       </AppShell.Navbar> */}
       <AppShell.Main>
         <Routes>
-        <Route path="/" element={<EncodeText />} />
+        <Route path="/" element={<EncodeFile />} />
+        <Route path="/text" element={<EncodeText />} />
         <Route path="/benchmark" element={<Benchmark />} />
         <Route path="/block" element={<OneBlockTest />} />
       </Routes>

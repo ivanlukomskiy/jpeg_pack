@@ -1,14 +1,4 @@
-
-
-// 1. 4 bytes: error correction bits number
-// 2. 4 more bytes: error correction for (1)
-// 3. type: 0 - text; 1 - file
-// 4. if type==1, filename length, 1 byte
-// 5. filename symbols
-// 6. data length
-// 7. data symbols
-// 8. error correction symbols (the rest)
-
+import { joinUint8Arrays, splitUint8Array } from "../utils.js";
 import { GenericGF, ReedSolomonDecoder, ReedSolomonEncoder } from "./lib.js";
 
 // @ts-ignore
@@ -44,34 +34,6 @@ export function rsDecodeBlock(codeword: Uint8Array): Uint8Array {
   const data = new Uint8Array(BlockSize);
   for (let i = 0; i < BlockSize; i++) data[i] = cw[i] & 0xFF;
   return data;
-}
-
-function splitUint8Array(data: Uint8Array, segmentLength: number) {
-     const segments = [];
-    const totalSegments = Math.ceil(data.length / segmentLength);
-    
-    for (let i = 0; i < totalSegments; i++) {
-        const start = i * segmentLength;
-        const end = Math.min(start + segmentLength, data.length);
-        const segment = new Uint8Array(segmentLength);
-        segment.set(data.subarray(start, end));
-        segments.push(segment);
-    }
-    
-    return segments;
-}
-
-function joinUint8Arrays(arrays: Uint8Array[]): Uint8Array {
-    const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-    const result = new Uint8Array(totalLength);
-    
-    let offset = 0;
-    for (const arr of arrays) {
-        result.set(arr, offset);
-        offset += arr.length;
-    }
-    
-    return result;
 }
 
 export function addErrorCorrection(data: Uint8Array): Uint8Array {
