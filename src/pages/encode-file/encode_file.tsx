@@ -213,7 +213,7 @@ export function EncodeFile() {
             <NumberInput label={'height'} hideControls min={8} max={1080} value={h} onChange={onSetH} />
             {encFile?.name}
             <FileButton onChange={setEncFile} >
-            {(props) => <Button {...props}>Choo se file</Button>}
+            {(props) => <Button {...props}>Choose file</Button>}
             </FileButton>
             <Button onClick={encode} disabled={!encFile}>
               Encode

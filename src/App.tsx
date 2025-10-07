@@ -21,21 +21,20 @@ function App() {
         collapsed: { mobile: !opened },
       }}
     >
-      <AppShell.Header style={{border: 0}}>
-        {/* <Burger
+      {/* <AppShell.Header style={{border: 0}}>
+        <Burger
           opened={opened}
           onClick={toggle}
           hiddenFrom="sm"
           size="sm"
-        /> */}
+        />
         <Flex direction={'row'} gap={'xl'} style={{padding: '5px 20px'}}>
           <a href="/">file</a>
           <a href="/text">text</a>
           <a href="/benchmark">benchmark</a>
           <a href="/block">single block</a>
         </Flex>
-        {/* <div>Logo 123</div> */}
-      </AppShell.Header>
+      </AppShell.Header> */}
       {/* <AppShell.Navbar>
 
       </AppShell.Navbar> */}
