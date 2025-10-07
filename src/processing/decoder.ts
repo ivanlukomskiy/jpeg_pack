@@ -78,7 +78,7 @@ export class DecoderImpl implements Decoder {
 
 
         const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-        const dctMat = dct8x8Mat(block);
+        const dctMat = dct8x8Mat(this.cv, block);
 
         conf.forEach((c: DctCoefConf) => {
             const max = (1 << c.bitsCapacity) - 1;

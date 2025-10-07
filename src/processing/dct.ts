@@ -122,7 +122,9 @@ function processBlocks8(src32f, blockOp) {
 // Public: DCT over 8x8 blocks.
 // - If input is multi-channel, it will be split and processed per channel (keeping CV_32F).
 // - center: subtract 128 (JPEG-style) before DCT for 8-bit imagery.
-export function dct8x8Mat(srcMat, {center=false, padToMultipleOf8=false} = {}) {
+export function dct8x8Mat(cv_, srcMat, {center=false, padToMultipleOf8=false} = {}) {
+    cv = cv_;
+    precomputeDCTBasis()
   let src = srcMat;
 
   // Optional zero padding to next multiple of 8
