@@ -116,8 +116,8 @@ export function EncodeFile() {
     const [decFile, setDecFile] = useState<File | null>(null);
     const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
-    const [w, setW] = useState(320);
-    const [h, setH] = useState(320);
+    const [w, setW] = useState(1080);
+    const [h, setH] = useState(1080);
     const [inpText, setInpText] = useState(sampleText)
 
     const bytesPerBlock = useMemo(() => {
