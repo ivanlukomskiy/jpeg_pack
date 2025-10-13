@@ -11,6 +11,7 @@ export class EncoderImpl implements Encoder {
     private bitsIter: BitsIterator;
     private conf: EncodingConf;
     private cv: any;
+    private height: number;
 
     // step-by-step matrices for debugging
     public dataMatrix: any;
@@ -20,6 +21,7 @@ export class EncoderImpl implements Encoder {
     public prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
+        this.height = height;
         this.channels = new cv.MatVector();
         for (let i = 0; i < 3; i++) {
             const val = i == 0 ? 0 : .5;
@@ -79,7 +81,7 @@ export class EncoderImpl implements Encoder {
 
     private populateDctMatrix() {
         let x=0, y=0, chIdx=0;
-        while (chIdx < 3) {
+        while (y < this.height) {
             const ch = this.channels.get(chIdx);
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
             // const transform = chIdx == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
@@ -93,15 +95,14 @@ export class EncoderImpl implements Encoder {
                 // console.log('stored ', c.y + y, c.x + x, chIdx, byte / max)
             })
             // fixme i can do better
-            x += 8
-            if (x >= ch.cols) {
-                x = 0;
-                y += 8;
-            }
-            if (y >= ch.rows) {
-                x = 0;
-                y = 0;
-                chIdx += 1;
+            chIdx++;
+            if (chIdx >= 3) {
+                x += 8;
+                chIdx = 0;
+                if (x >= ch.cols) {
+                    x = 0;
+                    y += 8;
+                }
             }
         }
     }

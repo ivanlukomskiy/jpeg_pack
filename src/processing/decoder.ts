@@ -10,9 +10,9 @@ export class DecoderImpl implements Decoder {
     private image: any;
     private conf: EncodingConf;
     private cv: any;
-    private ch: number = 0;
     private res?: Uint8ArrayBuilder;
     private channels: any;
+    private height: number;
 
     // step-by-step matrices for debugging
     public dataMatrix: any;
@@ -31,6 +31,7 @@ export class DecoderImpl implements Decoder {
         if (rgb8uchar.rows % 8 != 0 || rgb8uchar.cols % 8 != 0) {
             throw new Error(`image dimensions should be multiples of 8; got ${rgb8uchar.rows}x${rgb8uchar.cols}`)
         }
+        this.height = rgb8uchar.rows;
         let bitsPerBlock = 0;
         this.conf.chromaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity * 2
@@ -107,12 +108,12 @@ export class DecoderImpl implements Decoder {
     private decodeDct() {
         let x=0, y=0, chIdx=0;
 
-        while (chIdx < 3) {
+        while (y < this.height) {
             const ch = this.channels.get(chIdx);
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
             conf.forEach((c: DctCoefConf) => {
                 const max = (1 << c.bitsCapacity) - 1;
-                const dctCoef = ch.floatPtr(c.y, c.x)[0];
+                const dctCoef = ch.floatPtr(c.y + y, c.x + x)[chIdx];
                 const value = Math.round(dctCoef * max);
                 for (let i = c.bitsCapacity - 1; i >= 0; i--) {
                     const bitValue = (value >> i) & 1;
@@ -120,15 +121,14 @@ export class DecoderImpl implements Decoder {
                 }
             })
             // fixme i can do better
-            x += 8
-            if (x >= ch.cols) {
-                x = 0;
-                y += 8;
-            }
-            if (y >= ch.rows) {
-                x = 0;
-                y = 0;
-                chIdx += 1;
+            chIdx++;
+            if (chIdx >= 3) {
+                x += 8;
+                chIdx = 0;
+                if (x >= ch.cols) {
+                    x = 0;
+                    y += 8;
+                }
             }
         }
     }
