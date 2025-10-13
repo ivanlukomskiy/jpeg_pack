@@ -1,6 +1,6 @@
-import type { DctCoefConf, EncodingConf } from "./config";
-import { DctCalc } from "./dct";
-import { Uint8ArrayBuilder } from "./uint_array_builder";
+import type {DctCoefConf, EncodingConf} from "./config";
+import {DctCalc} from "./dct";
+import {Uint8ArrayBuilder} from "./uint_array_builder";
 
 export interface Decoder {
     decode: (mat) => any;
@@ -17,8 +17,7 @@ export class DecoderImpl implements Decoder {
     // step-by-step matrices for debugging
     public dataMatrix: any;
     public ycrcb: any;
-    public rgb32: any;
-    public rgb8: any;
+    public bgr32f: any;
     public transformed: any;
 
     constructor(cv: any, conf: EncodingConf) {
@@ -26,12 +25,12 @@ export class DecoderImpl implements Decoder {
         this.cv = cv
     }
 
-    decode(rgb8uchar) {
-        this.rgb8 = rgb8uchar;
-        if (rgb8uchar.rows % 8 != 0 || rgb8uchar.cols % 8 != 0) {
-            throw new Error(`image dimensions should be multiples of 8; got ${rgb8uchar.rows}x${rgb8uchar.cols}`)
+    decode(bgr32f) {
+        this.bgr32f = bgr32f;
+        if (bgr32f.rows % 8 != 0 || bgr32f.cols % 8 != 0) {
+            throw new Error(`image dimensions should be multiples of 8; got ${bgr32f.rows}x${bgr32f.cols}`)
         }
-        this.height = rgb8uchar.rows;
+        this.height = bgr32f.rows;
         let bitsPerBlock = 0;
         this.conf.chromaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity * 2
@@ -39,15 +38,11 @@ export class DecoderImpl implements Decoder {
         this.conf.lumaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity
         })
-        const expectedSize = bitsPerBlock * rgb8uchar.rows / 8 * rgb8uchar.cols / 8 / 8;
+        const expectedSize = bitsPerBlock * bgr32f.rows / 8 * bgr32f.cols / 8 / 8;
         this.res = new Uint8ArrayBuilder(expectedSize)
 
-        this.rgb32 = new this.cv.Mat();
-        rgb8uchar.convertTo(this.rgb32, this.cv.CV_32F, 1);
-        // rgb8uchar.convertTo(this.rgb32, this.cv.CV_32F, 1/255.0);
-
         this.ycrcb = new this.cv.Mat();
-        this.cv.cvtColor(this.rgb32, this.ycrcb, this.cv.COLOR_RGB2YCrCb);
+        this.cv.cvtColor(bgr32f, this.ycrcb, this.cv.COLOR_BGR2YCrCb);
         this.image = this.ycrcb;
 
         this.channels = new this.cv.MatVector();
@@ -61,9 +56,6 @@ export class DecoderImpl implements Decoder {
         const dctCalc = new DctCalc(this.cv);
         dctCalc.init();
         this.inverseDct(dctCalc);
-        // while (this.ch < 3) {
-        //     this.decodeNextBlock(dctCalc);
-        // }
         dctCalc.cleanup();
 
         this.dataMatrix = new this.cv.Mat();
@@ -78,11 +70,8 @@ export class DecoderImpl implements Decoder {
         for (let i = 0; i < this.channels.size(); i++) {
             const ch = this.channels.get(i);
             const transform = i == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-            if (i == 0) {
-                // ch.convertTo(ch, -1, 1, 0);   // ch = ch*30 + 10
-                ch.convertTo(ch, -1, 1, -transform.addition);   // ch = ch*30 + 10
-                ch.convertTo(ch, -1, 1/transform.multiplier, 0);   // ch = ch*30 + 10
-            }
+            ch.convertTo(ch, -1, 1, -transform.addition);   // ch = ch*30 + 10
+            ch.convertTo(ch, -1, 1/transform.multiplier, 0);   // ch = ch*30 + 10
             this.channels.set(i, ch);
             ch.delete();
         }
@@ -113,12 +102,13 @@ export class DecoderImpl implements Decoder {
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
             conf.forEach((c: DctCoefConf) => {
                 const max = (1 << c.bitsCapacity) - 1;
-                const dctCoef = ch.floatPtr(c.y + y, c.x + x)[chIdx];
+                const dctCoef = ch.floatPtr(c.y + y, c.x + x)[0];
                 const value = Math.round(dctCoef * max);
                 for (let i = c.bitsCapacity - 1; i >= 0; i--) {
                     const bitValue = (value >> i) & 1;
                     this.res?.addBit(bitValue);
                 }
+                console.log("value", c.x,c.y,chIdx, 'rec', value, 'frac', value/max, 'unr', dctCoef * max)
             })
             // fixme i can do better
             chIdx++;

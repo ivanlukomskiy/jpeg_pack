@@ -17,14 +17,15 @@ export class EncoderImpl implements Encoder {
     public dataMatrix: any;
     public ycrcb: any;
     public transformed: any;
-    public rgb32: any;
+    public bgr32f: any;
     public prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
         this.height = height;
         this.channels = new cv.MatVector();
         for (let i = 0; i < 3; i++) {
-            const val = i == 0 ? 0 : .5;
+            const val = 0;
+            // const val = i == 0 ? 0 : .5;
             const mat = new cv.Mat(height, width, cv.CV_32FC1, new cv.Scalar(val));
             mat.setTo(new cv.Scalar(val));
             this.channels.push_back(mat);
@@ -67,12 +68,12 @@ export class EncoderImpl implements Encoder {
         this.transformed = new this.cv.Mat();
         this.cv.merge(this.channels, this.transformed);
 
-        this.rgb32 = new this.cv.Mat();
-        this.cv.cvtColor(this.transformed, this.rgb32, this.cv.COLOR_YCrCb2BGR)
-        this.cv.min(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [1,1,1,0]), this.rgb32);
-        this.cv.max(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [0,0,0,0]), this.rgb32);
+        this.bgr32f = new this.cv.Mat();
+        this.cv.cvtColor(this.transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
+        this.cv.min(this.bgr32f, new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]), this.bgr32f);
+        this.cv.max(this.bgr32f, new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]), this.bgr32f);
 
-        return this.rgb32;
+        return this.bgr32f;
         // const rgb8 = new this.cv.Mat();
         // this.rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
         //
@@ -92,7 +93,7 @@ export class EncoderImpl implements Encoder {
                 // const withTransform = val * transform.multiplier + transform.addition;
                 // ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
                 ch.floatPtr(c.y + y, c.x + x)[0] = val;
-                // console.log('stored ', c.y + y, c.x + x, chIdx, byte / max)
+                console.log('stored ', c.x + x, c.y + y, chIdx, 'orig', byte, 'frac', val)
             })
             // fixme i can do better
             chIdx++;
@@ -111,9 +112,7 @@ export class EncoderImpl implements Encoder {
         for (let i = 0; i < this.channels.size(); i++) {
             const ch = this.channels.get(i);
             const transform = i == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-            if (i !=0) continue;
-            // ch.convertTo(ch, -1, 1, 0);   // ch = ch*30 + 10
-            ch.convertTo(ch, -1, transform.multiplier, transform.addition);   // ch = ch*30 + 10
+            ch.convertTo(ch, -1, transform.multiplier, transform.addition);
             this.channels.set(i, ch);
             ch.delete();
         }

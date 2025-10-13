@@ -4,14 +4,15 @@ import { BitsIteratorImpl } from '../../processing/bits_iter';
 import { DecoderImpl } from '../../processing/decoder';
 import { DefaultEncodingConf } from '../../processing/config';
 import { EncoderImpl } from '../../processing/encoder';
-import { Button, Flex, NumberInput, SegmentedControl, Textarea, Title } from '@mantine/core';
+import {Button, Checkbox, Flex, NumberInput, SegmentedControl, Textarea, Title} from '@mantine/core';
 import { MatRender } from '../../components/mat_render/MatRender';
 import { Mat } from '../../components/mat/Mat';
+import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
 
 const INP_TYPE_TEXT = 'text';
 const INP_TYPE_RANDOM = 'random';
-const INP_TYPE_BENCHMARK = 'bench';
-const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT];
+const INP_TYPE_BYTES = 'bytes';
+const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BYTES];
 
 
 export function OneBlockTest() {
@@ -19,8 +20,10 @@ export function OneBlockTest() {
     const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
   // const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
-  const [inpType, setInpType] = useState(INP_TYPE_TEXT)
-  const [inpText, setInpText] = useState("adc")
+  const [inpType, setInpType] = useState(INP_TYPE_BYTES)
+  const [inpText, setInpText] = useState("adcd")
+  const [inpBytes, setInpBytes] = useState("86, 119, 123, 231")
+  const [reencode, setReencode] = useState(true)
   // const [errRateData, setErrRateData] = useState(null);
   const cvLib = useOpenCV();
 
@@ -31,8 +34,10 @@ export function OneBlockTest() {
         const data = encoder.encode(inpText);
         console.log("data", data)
       iter = BitsIteratorImpl.fromText(inpText);
-    } else {
+    } else if(inpType == INP_TYPE_RANDOM) {
       iter = BitsIteratorImpl.random(randInputSize);
+    } else {
+        iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
     }
     const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
     const res = encoder.encode();
@@ -43,24 +48,28 @@ export function OneBlockTest() {
         dataMatrix: encoder.dataMatrix,
         ycrcb: encoder.ycrcb,
         transformed: encoder.transformed,
-        rgb32: encoder.rgb32,
+        bgr32f: encoder.bgr32f,
         res,
     })
-  }, [cvLib, randInputSize, inpType, inpText])
+  }, [cvLib, randInputSize, inpType, inpText, inpBytes])
   
-  const decode = useCallback(() => {
+  const decode = useCallback(async () => {
     if (!res) return;
+    let source = res;
+    if (reencode) {
+        const reencoded = await jpegRoundTripBgr32f(cvLib.cv, source)
+        source = reencoded.bgr32fDecoded;
+    }
     const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-    const bytes = decoder.decode(res);
+    const bytes = decoder.decode(source);
     setMat({
         dataMatrix: decoder.dataMatrix,
         transformed: decoder.transformed,
-        rgb32: decoder.rgb32,
-        rgb8: decoder.rgb8,
+        bgr32f: decoder.bgr32f,
         ycrcb: decoder.ycrcb,
     })
     console.log('decoded:', bytes)
-  }, [res])
+  }, [cvLib.cv, reencode, res])
 
   const onRandInputSizeChanged = useCallback((e) => {
     setRandInputSize(e);
@@ -71,6 +80,11 @@ export function OneBlockTest() {
     setInpText(e.target.value);
   }, []);
 
+  const onSetInpBytes = useCallback((e) => {
+    console.log(e.target.value);
+    setInpBytes(e.target.value);
+  }, []);
+
   return (
     <Flex direction={'column'} gap={'xl'}>
     <Flex direction={'row'} gap={'xl'}>
@@ -78,8 +92,10 @@ export function OneBlockTest() {
         <Title size={'lg'}>Input</Title>
         <SegmentedControl color="blue" data={INP_TYPE_OPTIONS} value={inpType} onChange={setInpType} />
         {inpType == INP_TYPE_TEXT && <Textarea autosize label="Text" value={inpText} onChange={onSetInpText} />}
+        {inpType == INP_TYPE_BYTES && <Textarea autosize label="Bytes" value={inpBytes} onChange={onSetInpBytes} />}
         {inpType == INP_TYPE_RANDOM && <NumberInput label="Size" min={0} hideControls value={randInputSize} onChange={onRandInputSizeChanged}/>}
-        <Button onClick={go}>
+        <Checkbox label={'reencode'} checked={reencode} onClick={() => setReencode(r => !r)} />
+          <Button onClick={go}>
           Generate
         </Button>
       </Flex>

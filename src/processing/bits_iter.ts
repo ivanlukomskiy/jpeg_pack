@@ -1,4 +1,4 @@
-import { DefaultEncodingConf, type DctCoefConf } from "./config";
+import {type DctCoefConf, DefaultEncodingConf} from "./config";
 
 export interface BitsIterator {
   next(): number | null;
@@ -167,22 +167,18 @@ export function buildErrSourceAcc() {
   return res;
 }
 
-export function normalizeErrorSources(acc: Record<string, number>) {
-  DefaultEncodingConf.lumaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      acc[`l_${c.x},${c.y}`] /= c.bitsCapacity;
-    }
-  });
-  DefaultEncodingConf.chromaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      acc[`cr_${c.x},${c.y}`] /= c.bitsCapacity;
-    }
-  });
-  DefaultEncodingConf.chromaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      acc[`cb_${c.x},${c.y}`] /= c.bitsCapacity;
-    }
-  });
+function accountForErrors(acc: Record<string, number>, prefix: string, conf: DctCoefConf[], size: number) {
+    conf.forEach(c => {
+        const key =`${prefix}_${c.x},${c.y}`;
+        console.log("c.bitsCapacity", key, c.bitsCapacity , c.bitsCapacity * size)
+        acc[key] = acc[key] / c.bitsCapacity / size;
+    })
+}
+
+export function normalizeErrorSources(acc: Record<string, number>, size: number) {
+    accountForErrors(acc, "l", DefaultEncodingConf.lumaConf, size);
+    accountForErrors(acc, "cr", DefaultEncodingConf.chromaConf, size);
+    accountForErrors(acc, "cb", DefaultEncodingConf.chromaConf, size);
 }
 
 export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, acc: Record<string, number>) {
@@ -202,6 +198,7 @@ export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, ac
               const offset = (i * 8 + (7 - bitPos)) % blockSize;
               const dctName = offsetMap[offset];
               acc[dctName]++;
+              console.log(dctName, '++', acc[dctName]);
             }
         }
     }
