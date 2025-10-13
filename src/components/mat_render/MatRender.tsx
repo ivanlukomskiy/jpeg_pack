@@ -21,17 +21,22 @@ function displayImage(mat: any, canvas: HTMLCanvasElement) {
             data[i + 3] = 255;   // A (fully opaque)
         }
     } else if (mat.channels() === 3) {
-        // console.log('BGR')
+        console.log('BGR')
         // BGR
         imageData = ctx.createImageData(mat.cols, mat.rows);
         const data = imageData.data;
-        const matData = mat.data;
-        
+        const matData = mat.data32F; // <-- use float data
+
         for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-            data[i] = matData[j + 2];     // R (BGR -> RGB)
-            data[i + 1] = matData[j + 1]; // G
-            data[i + 2] = matData[j];     // B
-            data[i + 3] = 255;           // A
+            // Scale [0,1] float to [0,255] for display
+            const b = Math.min(255, Math.max(0, matData[j] * 255));
+            const g = Math.min(255, Math.max(0, matData[j + 1] * 255));
+            const r = Math.min(255, Math.max(0, matData[j + 2] * 255));
+
+            data[i]     = r;   // R (BGR -> RGB)
+            data[i + 1] = g;   // G
+            data[i + 2] = b;   // B
+            data[i + 3] = 255; // A
         }
     } else if (mat.channels() === 4) {
         imageData = new ImageData(new Uint8ClampedArray(mat.data), mat.cols, mat.rows);
@@ -61,13 +66,19 @@ export function downloadMatAsJpeg(mat, filename = 'image.jpg') {
     canvas.width = mat.cols;
     canvas.height = mat.rows;
     const imageData = ctx.createImageData(mat.cols, mat.rows);
-    const matData = new Uint8ClampedArray(mat.data);
-    const imageDataData = imageData.data;
-    for (let i = 0, j = 0; i < matData.length; i += 3, j += 4) {
-        imageDataData[j] = matData[i];     // R
-        imageDataData[j + 1] = matData[i + 1]; // G
-        imageDataData[j + 2] = matData[i + 2]; // B
-        imageDataData[j + 3] = 255;        // A
+    const data = imageData.data;
+    const matData = mat.data32F; // <-- use float data
+
+    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+        // Scale [0,1] float to [0,255] for display
+        const b = Math.min(255, Math.max(0, matData[j] * 255));
+        const g = Math.min(255, Math.max(0, matData[j + 1] * 255));
+        const r = Math.min(255, Math.max(0, matData[j + 2] * 255));
+
+        data[i]     = r;   // R (BGR -> RGB)
+        data[i + 1] = g;   // G
+        data[i + 2] = b;   // B
+        data[i + 3] = 255; // A
     }
     ctx.putImageData(imageData, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);

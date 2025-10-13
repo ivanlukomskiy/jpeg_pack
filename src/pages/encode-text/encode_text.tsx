@@ -47,7 +47,7 @@ export function EncodeText() {
     
         const iter = BitsIteratorImpl.fromText(inpText);
         const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)
-        const [image, res] = encoder.encode();
+        const res = encoder.encode();
     
         //   let {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, 95);
         //   console.log('rgb8Decoded', rgb8Decoded)

@@ -14,8 +14,14 @@ const extractChannelData = (mat: any, channelIndex: number) => {
         const row = [];
         for (let j = 0; j < cols; j++) {
         // For multi-channel images, get the specific channel value
-        const pixel = mat.ucharPtr(i, j);
-        row.push(pixel[channelIndex]);
+            let pixel = 0;
+            try { // fixme proper type selection
+                pixel = mat.floatPtr(i, j)[channelIndex];
+            } catch (e) {
+                pixel = mat.ucharPtr(i, j)[channelIndex];
+            }
+
+        row.push(pixel.toFixed(2));
         }
         channelData.push(row);
     }

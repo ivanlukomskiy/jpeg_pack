@@ -98,7 +98,7 @@ export function Benchmark() {
           const original = randomUint8Arr(size);
           const iter = BitsIteratorImpl.fromBytes(original);
           const encoder = new EncoderImpl(cvLib.cv, 8 * blocksPerAxis, 8 * blocksPerAxis, iter, DefaultEncodingConf)
-          const [image, res] = encoder.encode();
+          const res = encoder.encode();
     
           const {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, jpegQuality);
     

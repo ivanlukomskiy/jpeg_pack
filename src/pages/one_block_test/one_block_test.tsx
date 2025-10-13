@@ -15,8 +15,8 @@ const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT];
 
 
 export function OneBlockTest() {
-  const [mat, setMat] = useState<any>(null)
-  const [res, setRes] = useState<any>(null)
+  const [mat, setMat] = useState<Record<string, any>>({})
+    const [res, setRes] = useState<any>(null)
   const [randInputSize, setRandInputSize] = useState(96);
   // const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
   const [inpType, setInpType] = useState(INP_TYPE_TEXT)
@@ -32,9 +32,16 @@ export function OneBlockTest() {
       iter = BitsIteratorImpl.random(randInputSize);
     }
     const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
-    const [image, res] = encoder.encode();
-    setMat(image);
+    const res = encoder.encode();
     setRes(res);
+    console.log("res.floatAt(0,0)[0]", res.floatPtr(1,1)[0])
+    setMat({
+        prime: encoder.prime,
+        dataMatrix: encoder.dataMatrix,
+        ycrcb: encoder.ycrcb,
+        rgb32: encoder.rgb32,
+        res,
+    })
   }, [cvLib, randInputSize, inpType, inpText])
   
   const decode = useCallback(() => {
@@ -78,10 +85,14 @@ export function OneBlockTest() {
       </Flex>
     </Flex>
     <Flex direction={'column'} gap={'xl'}>
-      <Title>YCrCb</Title>
-      <Mat mat={mat} />
-      <Title>BGR</Title>
-      <Mat mat={res} />
+        {Object.keys(mat).map(key => {
+            return (
+                <span key={key}>
+                    <Title>{key}</Title>
+                    <Mat mat={mat[key]} />
+                </span>
+            )
+        })}
     </Flex>
     </Flex>
   )

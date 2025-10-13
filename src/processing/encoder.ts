@@ -16,12 +16,24 @@ export class EncoderImpl implements Encoder {
     private y: number = 0;
     private ch: number = 0;
 
+    // step-by-step matrices for debugging
+    public dataMatrix: any;
+    public dataMatrixWithTransforms: any;
+    public ycrcb: any;
+    public rgb32: any;
+    public prime: any;
+
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
         this.channels = new cv.MatVector();
         for (let i = 0; i < 3; i++) {
             const val = i == 0 ? 0 : .5;
-            this.channels.push_back(new cv.Mat(height, width, cv.CV_32FC1, new cv.Scalar(val)));
+            const mat = new cv.Mat(height, width, cv.CV_32FC1, new cv.Scalar(val));
+            mat.setTo(new cv.Scalar(val));
+            this.channels.push_back(mat);
         }
+        const kek = new cv.Mat();
+        cv.merge(this.channels, kek);
+        console.log('test', kek.floatPtr(0,0)[1])
 
         // this.image = new cv.Mat(width, height, cv.CV_32FC3)
         // this.image.setTo(new cv.Scalar(0, .5, .5))
@@ -31,9 +43,17 @@ export class EncoderImpl implements Encoder {
     }
 
     public encode() {
+        this.prime = new this.cv.Mat();
+        this.cv.merge(this.channels, this.prime);
+        console.log('test2', this.prime.floatPtr(0,0)[1])
 
         this.populateDctMatrix();
-        this.applyTransforms();
+        this.dataMatrix = new this.cv.Mat();
+        this.cv.merge(this.channels, this.dataMatrix);
+
+        // this.applyTransforms();
+        // this.dataMatrixWithTransforms = new this.cv.Mat();
+        // this.cv.merge(this.channels, this.dataMatrixWithTransforms);
 
         const dctCalc = new DctCalc(this.cv);
         dctCalc.init()
@@ -41,25 +61,20 @@ export class EncoderImpl implements Encoder {
         // while (this.ch < 3) {
         //     this.encodeNextBlock(dctCalc);
         // }
-        // dctCalc.cleanup();
-        let float32 = new this.cv.Mat();
-        this.cv.merge(this.channels, float32);
-        console.log('ch', this.channels.get(0).floatAt(1,1))
-        console.log('ch', this.channels.get(1).floatAt(1,1))
-        console.log('ch', this.channels.get(2).floatAt(1,1))
+        dctCalc.cleanup();
+        this.ycrcb = new this.cv.Mat();
+        this.cv.merge(this.channels, this.ycrcb);
 
-        const rgb32 = new this.cv.Mat();
-        this.cv.cvtColor(float32, rgb32, this.cv.COLOR_YCrCb2RGB)
-        this.cv.min(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [1,1,1,0]), rgb32);
-        this.cv.max(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [0,0,0,0]), rgb32);
+        this.rgb32 = new this.cv.Mat();
+        this.cv.cvtColor(this.ycrcb, this.rgb32, this.cv.COLOR_YCrCb2BGR)
+        this.cv.min(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [1,1,1,0]), this.rgb32);
+        this.cv.max(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [0,0,0,0]), this.rgb32);
 
-        const rgb8 = new this.cv.Mat();
-        rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
-
-        const ycrcb8 = new this.cv.Mat();
-        float32.convertTo(ycrcb8, this.cv.CV_8U, 255);
-
-        return [ycrcb8, rgb8];
+        return this.rgb32;
+        // const rgb8 = new this.cv.Mat();
+        // this.rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
+        //
+        // return rgb8;
     }
 
     private populateDctMatrix() {
@@ -67,11 +82,14 @@ export class EncoderImpl implements Encoder {
         while (chIdx < 3) {
             const ch = this.channels.get(chIdx);
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
+            const transform = chIdx == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
             conf.forEach((c: DctCoefConf) => {
                 const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
                 const max = (1 << c.bitsCapacity) - 1;
-                ch.floatPtr(c.y + y, c.x + x)[0] = byte / max;
-                console.log('stored ', c.y + y, c.x + x, byte / max)
+                const val = byte / max;
+                const withTransform = val * transform.multiplier + transform.addition;
+                ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
+                console.log('stored ', c.y + y, c.x + x, chIdx, byte / max)
             })
             // fixme i can do better
             x += 8
