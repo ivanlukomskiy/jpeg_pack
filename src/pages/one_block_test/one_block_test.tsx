@@ -27,6 +27,9 @@ export function OneBlockTest() {
   const go = useCallback(() => {
     let iter = null;
     if (inpType == INP_TYPE_TEXT) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(inpText);
+        console.log("data", data)
       iter = BitsIteratorImpl.fromText(inpText);
     } else {
       iter = BitsIteratorImpl.random(randInputSize);
@@ -34,11 +37,12 @@ export function OneBlockTest() {
     const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
     const res = encoder.encode();
     setRes(res);
-    console.log("res.floatAt(0,0)[0]", res.floatPtr(1,1)[0])
+
     setMat({
-        prime: encoder.prime,
+        // prime: encoder.prime,
         dataMatrix: encoder.dataMatrix,
         ycrcb: encoder.ycrcb,
+        transformed: encoder.transformed,
         rgb32: encoder.rgb32,
         res,
     })
@@ -48,6 +52,13 @@ export function OneBlockTest() {
     if (!res) return;
     const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
     const bytes = decoder.decode(res);
+    setMat({
+        dataMatrix: decoder.dataMatrix,
+        transformed: decoder.transformed,
+        rgb32: decoder.rgb32,
+        rgb8: decoder.rgb8,
+        ycrcb: decoder.ycrcb,
+    })
     console.log('decoded:', bytes)
   }, [res])
 

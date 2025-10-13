@@ -7,19 +7,15 @@ export interface Encoder {
 }
 
 export class EncoderImpl implements Encoder {
-    private image: any;
     private channels: any;
     private bitsIter: BitsIterator;
     private conf: EncodingConf;
     private cv: any;
-    private x: number = 0;
-    private y: number = 0;
-    private ch: number = 0;
 
     // step-by-step matrices for debugging
     public dataMatrix: any;
-    public dataMatrixWithTransforms: any;
     public ycrcb: any;
+    public transformed: any;
     public rgb32: any;
     public prime: any;
 
@@ -51,7 +47,6 @@ export class EncoderImpl implements Encoder {
         this.dataMatrix = new this.cv.Mat();
         this.cv.merge(this.channels, this.dataMatrix);
 
-        // this.applyTransforms();
         // this.dataMatrixWithTransforms = new this.cv.Mat();
         // this.cv.merge(this.channels, this.dataMatrixWithTransforms);
 
@@ -65,8 +60,13 @@ export class EncoderImpl implements Encoder {
         this.ycrcb = new this.cv.Mat();
         this.cv.merge(this.channels, this.ycrcb);
 
+        this.applyTransforms();
+
+        this.transformed = new this.cv.Mat();
+        this.cv.merge(this.channels, this.transformed);
+
         this.rgb32 = new this.cv.Mat();
-        this.cv.cvtColor(this.ycrcb, this.rgb32, this.cv.COLOR_YCrCb2BGR)
+        this.cv.cvtColor(this.transformed, this.rgb32, this.cv.COLOR_YCrCb2BGR)
         this.cv.min(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [1,1,1,0]), this.rgb32);
         this.cv.max(this.rgb32, new this.cv.Mat(this.rgb32.rows, this.rgb32.cols, this.rgb32.type(), [0,0,0,0]), this.rgb32);
 
@@ -82,14 +82,15 @@ export class EncoderImpl implements Encoder {
         while (chIdx < 3) {
             const ch = this.channels.get(chIdx);
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-            const transform = chIdx == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
+            // const transform = chIdx == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
             conf.forEach((c: DctCoefConf) => {
                 const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
                 const max = (1 << c.bitsCapacity) - 1;
                 const val = byte / max;
-                const withTransform = val * transform.multiplier + transform.addition;
-                ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
-                console.log('stored ', c.y + y, c.x + x, chIdx, byte / max)
+                // const withTransform = val * transform.multiplier + transform.addition;
+                // ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
+                ch.floatPtr(c.y + y, c.x + x)[0] = val;
+                // console.log('stored ', c.y + y, c.x + x, chIdx, byte / max)
             })
             // fixme i can do better
             x += 8
@@ -106,17 +107,14 @@ export class EncoderImpl implements Encoder {
     }
 
     private applyTransforms() {
-        for (let chIdx = 0; chIdx < 3; chIdx++) {
-            const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-            if (conf.length == 0) continue;
-            const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-            const ch = this.channels.get(chIdx);
-            console.log(ch.floatPtr(3,3)[0])
-            this.cv.addWeighted(ch, tranform.multiplier, ch, 0, tranform.addition, ch);
-            console.log(ch.floatPtr(3,3)[0])
-            // this.cv.multiply(ch, new this.cv.Scalar(tranform.multiplier), ch);
-            // this.cv.add(ch, new this.cv.Scalar(tranform.addition), ch);
-            // ch.convertTo(ch, this.cv.CV_32F, tranform.multiplier, tranform.addition * tranform.multiplier);
+        for (let i = 0; i < this.channels.size(); i++) {
+            const ch = this.channels.get(i);
+            const transform = i == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
+            if (i !=0) continue;
+            // ch.convertTo(ch, -1, 1, 0);   // ch = ch*30 + 10
+            ch.convertTo(ch, -1, transform.multiplier, transform.addition);   // ch = ch*30 + 10
+            this.channels.set(i, ch);
+            ch.delete();
         }
     }
 
@@ -134,45 +132,5 @@ export class EncoderImpl implements Encoder {
         }
         this.channels.delete(); // fixme also delete individual channels??
         this.channels = newChannels;
-    }
-
-
-    private encodeNextBlock(dctCalc: DctCalc) { // deprecated
-        const dctMat = new this.cv.Mat(8, 8, this.cv.CV_32F);
-        dctMat.setTo(new this.cv.Scalar(0))
-        const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-        const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-        conf.forEach((c: DctCoefConf) => {
-            const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
-            const max = (1 << c.bitsCapacity) - 1;
-            dctMat.floatPtr(c.y, c.x)[0] = byte / max;
-        })
-
-        const blockImage = dctCalc.idct8x8Mat(dctMat);
-
-        for (let y = 0; y < 8; y++) {
-            for (let x = 0; x < 8; x++) {
-                let pixelValue = blockImage.floatPtr(y, x)[0]
-                pixelValue = pixelValue
-                    * tranform.multiplier 
-                    + tranform.addition;
-                
-                if (conf.length == 0) pixelValue = 0.5;
-                this.image.floatPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
-            }
-        }
-        
-        blockImage.delete();
-
-        this.x += 8
-        if (this.x >= this.image.cols) {
-            this.x = 0;
-            this.y += 8;
-        }
-        if (this.y >= this.image.rows) {
-            this.x = 0;
-            this.y = 0;
-            this.ch += 1;
-        }
     }
 }
