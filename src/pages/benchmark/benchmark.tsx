@@ -30,7 +30,7 @@ interface PercentilePoint {
 
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
-    const [iterations, setIterations] = useState(1);
+    const [iterations, setIterations] = useState(10);
     const [jpegQuality, setJpegQuality] = useState(95);
     const [blocksPerAxis, setBlocksPerAxis] = useState(8);
     const [progress, setProgress] = useState<number | null>(null);

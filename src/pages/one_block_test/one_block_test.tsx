@@ -1,12 +1,12 @@
-import { useCallback, useRef, useState } from 'react'
-import { useOpenCV } from '../../hooks/opencv';
-import { BitsIteratorImpl } from '../../processing/bits_iter';
-import { DecoderImpl } from '../../processing/decoder';
-import { DefaultEncodingConf } from '../../processing/config';
-import { EncoderImpl } from '../../processing/encoder';
-import {Button, Checkbox, Flex, NumberInput, SegmentedControl, Textarea, Title} from '@mantine/core';
-import { MatRender } from '../../components/mat_render/MatRender';
-import { Mat } from '../../components/mat/Mat';
+import {useCallback, useMemo, useState} from 'react'
+import {useOpenCV} from '../../hooks/opencv';
+import {BitsIteratorImpl} from '../../processing/bits_iter';
+import {DecoderImpl} from '../../processing/decoder';
+import {DefaultEncodingConf} from '../../processing/config';
+import {EncoderImpl} from '../../processing/encoder';
+import {Button, Checkbox, Flex, NumberInput, Pill, SegmentedControl, Textarea, Title} from '@mantine/core';
+import {MatRender} from '../../components/mat_render/MatRender';
+import {Mat} from '../../components/mat/Mat';
 import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
 
 const INP_TYPE_TEXT = 'text';
@@ -14,6 +14,32 @@ const INP_TYPE_RANDOM = 'random';
 const INP_TYPE_BYTES = 'bytes';
 const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BYTES];
 
+export function randomBytesString(): string {
+    const rand = () => Math.floor(Math.random() * 256);
+    return `${rand()}, ${rand()}, ${rand()}, ${rand()}`;
+}
+
+export function uint8ArrayToString(arr: Uint8Array): string {
+    return Array.from(arr).join(", ");
+}
+
+export function compareCommaSeparatedBytes(a: string, b: string): boolean {
+    // Split by comma, trim spaces, filter out empties
+    const arrA = a.split(",").map(s => s.trim()).filter(Boolean);
+    const arrB = b.split(",").map(s => s.trim()).filter(Boolean);
+
+    if (arrA.length !== arrB.length) return false;
+
+    for (let i = 0; i < arrA.length; i++) {
+        const numA = Number(arrA[i]);
+        const numB = Number(arrB[i]);
+        // Strict equality on numeric values
+        if (!Number.isFinite(numA) || !Number.isFinite(numB) || numA !== numB) {
+            return false;
+        }
+    }
+    return true;
+}
 
 export function OneBlockTest() {
   const [mat, setMat] = useState<Record<string, any>>({})
@@ -24,20 +50,24 @@ export function OneBlockTest() {
   const [inpText, setInpText] = useState("adcd")
   const [inpBytes, setInpBytes] = useState("86, 119, 123, 231")
   const [reencode, setReencode] = useState(true)
-  // const [errRateData, setErrRateData] = useState(null);
+  const [decoded, setDecoded] = useState("");
   const cvLib = useOpenCV();
 
-  const go = useCallback(() => {
+  const go = useCallback((bytes?: string) => {
     let iter = null;
-    if (inpType == INP_TYPE_TEXT) {
+    if (bytes || inpType == INP_TYPE_BYTES) {
+        if (bytes) {
+            iter = BitsIteratorImpl.fromBytes(new Uint8Array(bytes.split(",").map(Number)))
+        } else {
+            iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
+        }
+    } else if (inpType == INP_TYPE_TEXT) {
         const encoder = new TextEncoder();
         const data = encoder.encode(inpText);
         console.log("data", data)
       iter = BitsIteratorImpl.fromText(inpText);
-    } else if(inpType == INP_TYPE_RANDOM) {
-      iter = BitsIteratorImpl.random(randInputSize);
     } else {
-        iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
+      iter = BitsIteratorImpl.random(randInputSize);
     }
     const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
     const res = encoder.encode();
@@ -51,9 +81,10 @@ export function OneBlockTest() {
         bgr32f: encoder.bgr32f,
         res,
     })
+      return res;
   }, [cvLib, randInputSize, inpType, inpText, inpBytes])
   
-  const decode = useCallback(async () => {
+  const decode = useCallback(async (res: any) => {
     if (!res) return;
     let source = res;
     if (reencode) {
@@ -69,7 +100,8 @@ export function OneBlockTest() {
         ycrcb: decoder.ycrcb,
     })
     console.log('decoded:', bytes)
-  }, [cvLib.cv, reencode, res])
+    setDecoded(uint8ArrayToString(bytes))
+  }, [cvLib.cv, reencode])
 
   const onRandInputSizeChanged = useCallback((e) => {
     setRandInputSize(e);
@@ -85,6 +117,24 @@ export function OneBlockTest() {
     setInpBytes(e.target.value);
   }, []);
 
+  const randomize = useCallback(() => {
+      const val = randomBytesString();
+      setInpBytes(val);
+      return val;
+  }, [])
+
+    const match = useMemo(() => {
+        if (decoded == "") return null;
+        return compareCommaSeparatedBytes(inpBytes, decoded);
+    }, [inpBytes, decoded])
+
+    const randomizeAndCheck = useCallback(async () => {
+        setDecoded("")
+        const val = randomize()
+        const res= go(val)
+        await decode(res);
+    }, [decode, go, randomize])
+
   return (
     <Flex direction={'column'} gap={'xl'}>
     <Flex direction={'row'} gap={'xl'}>
@@ -94,21 +144,28 @@ export function OneBlockTest() {
         {inpType == INP_TYPE_TEXT && <Textarea autosize label="Text" value={inpText} onChange={onSetInpText} />}
         {inpType == INP_TYPE_BYTES && <Textarea autosize label="Bytes" value={inpBytes} onChange={onSetInpBytes} />}
         {inpType == INP_TYPE_RANDOM && <NumberInput label="Size" min={0} hideControls value={randInputSize} onChange={onRandInputSizeChanged}/>}
+          {inpType == INP_TYPE_BYTES && <Button onClick={randomize}>Randomize</Button>}
         <Checkbox label={'reencode'} checked={reencode} onClick={() => setReencode(r => !r)} />
           <Button onClick={go}>
           Generate
+        </Button>
+          <Button onClick={randomizeAndCheck}>
+              Randomize & check
         </Button>
       </Flex>
       <Flex direction={'column'} gap={'sm'}>
         <Title size={'lg'}>Result</Title>
         <MatRender mat={res} />
-        {res && <Button onClick={decode}>
+        {res && <Button onClick={() => decode(res)}>
           Decode
         </Button>}
       </Flex>
       <Flex direction={'column'} gap={'sm'}>
         <Title size={'lg'}>Decoded</Title>
-        
+          {decoded}
+          {match !== null && <Pill style={{backgroundColor: match ? 'lightgreen' : 'red'}}>
+              {compareCommaSeparatedBytes(inpBytes, decoded) ? 'Match' : 'Mismatch'}
+          </Pill>}
       </Flex>
     </Flex>
     <Flex direction={'column'} gap={'xl'}>
