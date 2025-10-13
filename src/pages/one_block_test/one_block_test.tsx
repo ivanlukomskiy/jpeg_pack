@@ -14,16 +14,17 @@ const INP_TYPE_RANDOM = 'random';
 const INP_TYPE_BYTES = 'bytes';
 const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BYTES];
 
-export function randomBytesString(): string {
-    const rand = () => Math.floor(Math.random() * 256);
-    return `${rand()}, ${rand()}, ${rand()}, ${rand()}`;
+const rand = () => Math.floor(Math.random() * 256);
+
+function randomBytesString(n) {
+    return Array.from({ length: n }, rand).join(', ');
 }
 
-export function uint8ArrayToString(arr: Uint8Array): string {
+function uint8ArrayToString(arr: Uint8Array): string {
     return Array.from(arr).join(", ");
 }
 
-export function compareCommaSeparatedBytes(a: string, b: string): boolean {
+function compareCommaSeparatedBytes(a: string, b: string): boolean {
     // Split by comma, trim spaces, filter out empties
     const arrA = a.split(",").map(s => s.trim()).filter(Boolean);
     const arrB = b.split(",").map(s => s.trim()).filter(Boolean);
@@ -57,6 +58,7 @@ export function OneBlockTest() {
     let iter = null;
     if (bytes || inpType == INP_TYPE_BYTES) {
         if (bytes) {
+            console.log("bytes", bytes)
             iter = BitsIteratorImpl.fromBytes(new Uint8Array(bytes.split(",").map(Number)))
         } else {
             iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
@@ -69,7 +71,7 @@ export function OneBlockTest() {
     } else {
       iter = BitsIteratorImpl.random(randInputSize);
     }
-    const encoder = new EncoderImpl(cvLib.cv, 8, 8, iter, DefaultEncodingConf)
+    const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
     const res = encoder.encode();
     setRes(res);
 
@@ -118,7 +120,7 @@ export function OneBlockTest() {
   }, []);
 
   const randomize = useCallback(() => {
-      const val = randomBytesString();
+      const val = randomBytesString(16);
       setInpBytes(val);
       return val;
   }, [])
@@ -146,7 +148,7 @@ export function OneBlockTest() {
         {inpType == INP_TYPE_RANDOM && <NumberInput label="Size" min={0} hideControls value={randInputSize} onChange={onRandInputSizeChanged}/>}
           {inpType == INP_TYPE_BYTES && <Button onClick={randomize}>Randomize</Button>}
         <Checkbox label={'reencode'} checked={reencode} onClick={() => setReencode(r => !r)} />
-          <Button onClick={go}>
+          <Button onClick={() => go()}>
           Generate
         </Button>
           <Button onClick={randomizeAndCheck}>

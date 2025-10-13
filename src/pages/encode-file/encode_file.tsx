@@ -9,6 +9,7 @@ import { useOpenCV } from "../../hooks/opencv";
 import { sampleText } from "../../processing/sample_text";
 import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
 import { decodeFile, encodeFile, getApproxEffectiveCapacityBytes } from "../../models/protocol";
+import {getJpegSubsampling} from "../../processing/utils.ts";
 
 export function fileToUint8Array(file: File): Promise<Uint8Array> {
     return new Promise((resolve, reject) => {
@@ -167,6 +168,8 @@ export function EncodeFile() {
     const decode = useCallback(async () => {
         if (!decFile) return;
         const data = await fileToUint8Array(decFile);
+        const ss = await getJpegSubsampling(decFile)
+        console.log("subsampling info", ss)
         const {rgb8Decoded} = await decodeJpeg(cvLib.cv, data);
 
         const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)

@@ -92,3 +92,67 @@ export async function jpegRoundTripBgr32f(cv, bgr32f, quality = 0.95, unitRange 
 
     return { bgr32fDecoded, blob };
 }
+export async function getJpegSubsampling(file) {
+    // File and Blob both support .arrayBuffer()
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let i = 0;
+
+    // Must start with SOI (0xFFD8)
+    if (bytes[i++] !== 0xFF || bytes[i++] !== 0xD8) {
+        throw new Error('Not a JPEG file');
+    }
+
+    while (i < bytes.length) {
+        // Find next marker
+        while (i < bytes.length && bytes[i] !== 0xFF) i++;
+        while (i < bytes.length && bytes[i] === 0xFF) i++;
+        const marker = bytes[i++];
+
+        // End of Image (EOI) or Start of Scan (SOS) => stop parsing headers
+        if (marker === 0xD9 || marker === 0xDA) break;
+
+        // Segment length (includes the length field itself)
+        const len = (bytes[i++] << 8) | bytes[i++];
+        const segStart = i;
+
+        // SOF0 (0xC0) or SOF2 (0xC2) contains sampling factors
+        if (marker === 0xC0 || marker === 0xC2) {
+            const precision = bytes[i++];
+            const height = (bytes[i++] << 8) | bytes[i++];
+            const width  = (bytes[i++] << 8) | bytes[i++];
+            const nComp  = bytes[i++];
+
+            const comps = [];
+            for (let c = 0; c < nComp; c++) {
+                const id = bytes[i++];      // Component ID (1=Y, 2=Cb, 3=Cr)
+                const hv = bytes[i++];      // High nibble: H, low nibble: V
+                const q  = bytes[i++];      // Quantization table selector
+                comps.push({ id, H: hv >> 4, V: hv & 0xF, q });
+            }
+
+            const Y  = comps.find(c => c.id === 1) || comps[0];
+            const Cb = comps.find(c => c.id === 2);
+            const Cr = comps.find(c => c.id === 3);
+
+            const label = (() => {
+                if (!Cb || !Cr) return 'grayscale';
+                const key = `${Y.H}x${Y.V}-${Cb.H}x${Cb.V}-${Cr.H}x${Cr.V}`;
+                switch (key) {
+                    case '1x1-1x1-1x1': return '4:4:4';
+                    case '2x1-1x1-1x1': return '4:2:2';
+                    case '2x2-1x1-1x1': return '4:2:0';
+                    case '1x2-1x1-1x1': return '4:4:0';
+                    default: return `non-canonical (Y ${Y.H}x${Y.V}, Cb ${Cb.H}x${Cb.V}, Cr ${Cr.H}x${Cr.V})`;
+                }
+            })();
+
+            return { width, height, precision, components: comps, subsampling: label };
+        }
+
+        // Skip to next segment
+        i = segStart + len - 2;
+    }
+
+    throw new Error('No SOF segment found');
+}
