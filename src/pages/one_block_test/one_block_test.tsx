@@ -55,35 +55,39 @@ export function OneBlockTest() {
   const cvLib = useOpenCV();
 
   const go = useCallback((bytes?: string) => {
-    let iter = null;
-    if (bytes || inpType == INP_TYPE_BYTES) {
-        if (bytes) {
-            console.log("bytes", bytes)
-            iter = BitsIteratorImpl.fromBytes(new Uint8Array(bytes.split(",").map(Number)))
+    try {
+        let iter = null;
+        if (bytes || inpType == INP_TYPE_BYTES) {
+            if (bytes) {
+                console.log("bytes", bytes)
+                iter = BitsIteratorImpl.fromBytes(new Uint8Array(bytes.split(",").map(Number)))
+            } else {
+                iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
+            }
+        } else if (inpType == INP_TYPE_TEXT) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(inpText);
+            console.log("data", data)
+            iter = BitsIteratorImpl.fromText(inpText);
         } else {
-            iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(",").map(Number)))
+            iter = BitsIteratorImpl.random(randInputSize);
         }
-    } else if (inpType == INP_TYPE_TEXT) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(inpText);
-        console.log("data", data)
-      iter = BitsIteratorImpl.fromText(inpText);
-    } else {
-      iter = BitsIteratorImpl.random(randInputSize);
-    }
-    const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
-    const res = encoder.encode();
-    // setRes(res.clone());
+        const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
+        const res = encoder.encode();
+        // setRes(res.clone());
 
-    // setMat({
-    //     // prime: encoder.prime,
-    //     dataMatrix: encoder.dataMatrix.clone(),
-    //     ycrcb: encoder.ycrcb.clone(),
-    //     transformed: encoder.transformed.clone(),
-    //     bgr32f: encoder.bgr32f.clone(),
-    //     res: res.clone(),
-    // })
-    //   return res.clone();
+        // setMat({
+        //     // prime: encoder.prime,
+        //     dataMatrix: encoder.dataMatrix.clone(),
+        //     ycrcb: encoder.ycrcb.clone(),
+        //     transformed: encoder.transformed.clone(),
+        //     bgr32f: encoder.bgr32f.clone(),
+        //     res: res.clone(),
+        // })
+        //   return res.clone();
+    } catch (e) {
+        console.error(e)
+    }
   }, [cvLib, randInputSize, inpType, inpText, inpBytes])
   
   const decode = useCallback(async (res: any) => {

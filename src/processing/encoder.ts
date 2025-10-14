@@ -86,22 +86,22 @@ export class EncoderImpl implements Encoder {
         // this.dataMatrix = this.snapshot();
         console.log('data matrix shapshot ok')
 
-        const dctCalc = new DctCalc(this.cv);
+        // const dctCalc = new DctCalc(this.cv);
         console.log('dct constructor ok')
-        dctCalc.init()
+        // dctCalc.init()
         console.log('applying dct')
-        this.applyDct(dctCalc);
+        // this.applyDct(dctCalc);
         console.log('dct apply ok')
         // while (this.ch < 3) {
         //     this.encodeNextBlock(dctCalc);
         // }
-        dctCalc.cleanup();
+        // dctCalc.cleanup();
         console.log('dct cleanup ok')
         // this.ycrcb = this.snapshot();
         console.log('ycrcb snapshot ok')
 
 
-        this.applyTransforms();
+        // this.applyTransforms();
         console.log('transforms ok')
 
         this.transformed = this.snapshot();
@@ -111,9 +111,13 @@ export class EncoderImpl implements Encoder {
         console.log('1')
         this.cv.cvtColor(this.transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
         console.log('2')
-        this.cv.min(this.bgr32f, new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]), this.bgr32f);
+        const min = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]);
+        this.cv.min(this.bgr32f, min, this.bgr32f);
+        min.delete();
         console.log('3')
-        this.cv.max(this.bgr32f, new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]), this.bgr32f);
+        const max = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]);
+        this.cv.max(this.bgr32f, max, this.bgr32f);
+        max.delete();
 
         console.log('encode complete')
 
@@ -137,7 +141,7 @@ export class EncoderImpl implements Encoder {
         while (y < this.height) {
             const downsampling = chIdx == 0 ? 1 : 2;
             console.log('downsampling', downsampling, 'ch', chIdx, 'xy', x, y, 'x % downsampling', x % downsampling);
-            if ((x / 8) % downsampling === 0 || (y / 8) % downsampling === 0) {
+            if ((x / 8) % downsampling === 0 && (y / 8) % downsampling === 0) {
 
             const ch = this.channels.get(chIdx);
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
