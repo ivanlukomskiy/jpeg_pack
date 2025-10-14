@@ -135,20 +135,6 @@ export function buildErrSourceAcc(stats: DctConfStats) {
   return res;
 }
 
-function accountForErrors(acc: Record<string, number>, prefix: string, conf: DctCoefConf[], size: number) {
-    conf.forEach(c => {
-        const key =`${prefix}_${c.x},${c.y}`;
-        console.log("c.bitsCapacity", key, c.bitsCapacity , c.bitsCapacity * size)
-        acc[key] = acc[key] / c.bitsCapacity / size;
-    })
-}
-
-export function normalizeErrorSources(acc: Record<string, number>, size: number) {
-    accountForErrors(acc, "l", DefaultEncodingConf.lumaConf, size);
-    accountForErrors(acc, "cr", DefaultEncodingConf.chromaConf, size);
-    accountForErrors(acc, "cb", DefaultEncodingConf.chromaConf, size);
-}
-
 export function calculateErrorSources(
     array1: Uint8Array,
     array2: Uint8Array,

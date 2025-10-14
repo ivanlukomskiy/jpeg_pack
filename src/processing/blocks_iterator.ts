@@ -38,6 +38,7 @@ export interface DctCoefPoint {
     chIdx: number;
     confX: number;
     confY: number;
+    conf: DctCoefConf;
     bitsCapacity: number;
     blockType: BlockType;
 }
@@ -63,9 +64,10 @@ export class DctCoefIterator {
         const xBase = (stageLoops % (this.width / 16)) * 16;
         const yBase = Math.floor(stageLoops / (this.width / 16)) * 16;
         const stage = this.stages[this.stageIdx % this.stages.length];
+        const downsampleCoef = stage.blockType == BlockType.LUMA ? 1 : 2;
         return {
-            x: xBase + stage.offsetX + stage.conf.x,
-            y: yBase + stage.offsetY + stage.conf.y,
+            x: xBase / downsampleCoef + stage.offsetX + stage.conf.x,
+            y: yBase / downsampleCoef + stage.offsetY + stage.conf.y,
             conf: stage.conf,
             confX: stage.conf.x,
             confY: stage.conf.y,
@@ -78,22 +80,50 @@ export class DctCoefIterator {
 
 export interface DctConfStats {
     offsetToName: Record<number, string>;
+    nameToBitsInBlock: Record<string, number>;
     blockSize: number;
+}
+
+function blockName(type: BlockType, confX: number, confY: number) {
+    return `${type}_${confX}_${confY}`;
 }
 
 export function buildDctConfStats(conf: EncodingConf): DctConfStats {
     const iter = new DctCoefIterator(16, 16, conf);
     const offsetToName: Record<number, string> = {};
+    const nameToBitsInBlock: Record<string, number> = {};
     let offset = 0;
     let blockSize = 0;
     let next = iter.next();
     while (next) {
+        const name = blockName(next.blockType, next.confX, next.confY);
         for (let i = 0; i < next.bitsCapacity; i++) {
-            offsetToName[offset] = `${next.blockType}_${next.confX},${next.confY}`
+            offsetToName[offset] = name;
             offset++;
             blockSize++;
         }
+        if (!nameToBitsInBlock[name]) nameToBitsInBlock[name] = 0;
+        nameToBitsInBlock[name] += next.bitsCapacity;
         next = iter.next();
     }
-    return { offsetToName, blockSize }
+    return { offsetToName, blockSize, nameToBitsInBlock }
+}
+
+export function normalizeErrorSources(
+    errCountByName: Record<string, number>,
+    stats: DctConfStats,
+    width: number,
+    height: number,
+    iterations: number,
+): Record<string, number> {
+    const blocksCount = (width / 16) * (height / 16);
+    console.log("errCountByName", errCountByName)
+    const normalized: Record<string, number> = {};
+    Object.keys(stats.nameToBitsInBlock).forEach((name) => {
+        const totalBits = blocksCount * stats.nameToBitsInBlock[name];
+        const errors = errCountByName[name] || 0;
+        normalized[name] = totalBits > 0 ? errors / totalBits / iterations : 0;
+    })
+    console.log("normalized", normalized)
+    return normalized;
 }

@@ -17,9 +17,9 @@ export class EncoderImpl implements Encoder {
 
     // step-by-step matrices for debugging
     private dataMatrix: any;
-    private ycrcb: any;
-    private transformed: any;
-    private bgr32f: any;
+    public ycrcb: any;
+    public transformed: any;
+    public bgr32f: any;
     private prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {

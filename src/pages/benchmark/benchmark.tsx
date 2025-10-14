@@ -7,7 +7,6 @@ import {
     calculateErrorSources,
     compareBits,
     compareBytes,
-    normalizeErrorSources,
     randomUint8Arr
 } from "../../processing/bits_iter";
 import {EncoderImpl} from "../../processing/encoder";
@@ -16,7 +15,10 @@ import {useCallback, useMemo, useState} from "react";
 import {useOpenCV} from "../../hooks/opencv";
 import {BarChart} from "@mantine/charts";
 import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
-import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
+import {buildDctConfStats, normalizeErrorSources} from "../../processing/blocks_iterator.ts";
+import {ErrTable} from "../../components/err_table/ErrTable.tsx";
+import {analyzeF32Matrix, type ChannelStats} from "../../processing/matrix_analysis.ts";
+import {MatChart} from "../../components/mat_chart/MatChart.tsx";
 
 
 function getPercentile(sortedNumbers: number[], percentile: number) {
@@ -38,27 +40,32 @@ interface PercentilePoint {
 
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
-    const [iterations, setIterations] = useState(10);
+    const [iterations, setIterations] = useState(1);
     const [jpegQuality, setJpegQuality] = useState(95);
-    const [blocksPerAxis, setBlocksPerAxis] = useState(8);
+    const [blocksPerAxis, setBlocksPerAxis] = useState(4);
     const [progress, setProgress] = useState<number | null>(null);
     const cvLib = useOpenCV();
     const [bitErrRates, setBitErrRate] = useState<number[] | null>(null);
     const [byteErrRates, setByteErrRate] = useState<number[] | null>(null);
     const [errByDctPos, setErrByDctPos] = useState<Record<string, number> | null>(null);
+    const [ycrcbStats, setYCrCbStats] = useState<Record<string, ChannelStats> | null>(null);
+    const [rgbStats, setRgbStats] = useState<Record<string, ChannelStats> | null>(null);
 
     const benchmark = useCallback(async () => {
         try {
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2 / 4;
-        })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        size *= blocksPerAxis * blocksPerAxis;
+        // let size = 0;
+        // DefaultEncodingConf.chromaConf.forEach(c => {
+        //   size += c.bitsCapacity * 2 / 4;
+        // })
+        // DefaultEncodingConf.lumaConf.forEach(c => {
+        //   size += c.bitsCapacity;
+        // })
+        // size *= blocksPerAxis * blocksPerAxis;
         const stats = buildDctConfStats(DefaultEncodingConf);
-    
+        const size = stats.blockSize * blocksPerAxis * blocksPerAxis;
+        const ycrcbStats: Record<string, ChannelStats> = {}
+        const rgbStats: Record<string, ChannelStats> = {}
+
         const bitRates = [];
         const byteRates = [];
         setBitErrRate([]);
@@ -67,8 +74,10 @@ export function Benchmark() {
         for (let i = 0; i < iterations; i ++) {
           const original = randomUint8Arr(size);
           const iter = BitsIteratorImpl.fromBytes(original);
-          const encoder = new EncoderImpl(cvLib.cv, 8 * blocksPerAxis, 8 * blocksPerAxis, iter, DefaultEncodingConf)
+          const encoder = new EncoderImpl(cvLib.cv, 16 * blocksPerAxis, 16 * blocksPerAxis, iter, DefaultEncodingConf)
           const res = encoder.encode();
+          analyzeF32Matrix(ycrcbStats, encoder.ycrcb, true);
+          analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
     
           const {bgr32fDecoded} = await jpegRoundTripBgr32f(cvLib.cv, res, jpegQuality);
     
@@ -86,11 +95,11 @@ export function Benchmark() {
           setByteErrRate([...byteRates])
           setProgress((i + 1) / iterations);
         }
-        console.log('acc bef', acc)
-        normalizeErrorSources(acc, size);
-        console.log('acc aft', acc)
-        setErrByDctPos(acc); // fixme looks like it gets calculated wrong, need to inverse-test it
+        const normalized = normalizeErrorSources(acc, stats, 16 * blocksPerAxis, 16 * blocksPerAxis, iterations);
+        setErrByDctPos(normalized);
         setProgress(null);
+        setRgbStats(rgbStats)
+        setYCrCbStats(ycrcbStats)
         } catch(e) {
             console.error(e)
             setProgress(null);
@@ -150,6 +159,8 @@ export function Benchmark() {
           <Flex direction={'column'} gap={'sm'}>
             <Title size={'lg'}>Image</Title>
             <MatRender mat={res} />
+              {errByDctPos && <Typography>Err chance per bit</Typography>}
+              {errByDctPos && <ErrTable errByName={errByDctPos} />}
             
           </Flex>
           <Flex direction={'column'} gap={'sm'} style={{width: '300px'}}>
@@ -180,10 +191,8 @@ export function Benchmark() {
                     tickLine="y"
                 />
             </>}
-              <Typography>Err chance per bit</Typography>
-            {errByDctPos && Object.keys(errByDctPos).map((key) => 
-               ( <Typography key={key}>{key}: {(errByDctPos[key] * 100).toFixed(2)}%</Typography>)
-            )}
+          {ycrcbStats && <MatChart chStats={ycrcbStats}/>}
+        {rgbStats && <MatChart chStats={rgbStats}/>}
         </Flex>
         </Flex>
       )

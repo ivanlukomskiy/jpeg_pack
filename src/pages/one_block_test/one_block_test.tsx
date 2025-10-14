@@ -8,6 +8,8 @@ import {Button, Checkbox, Flex, NumberInput, Pill, SegmentedControl, Textarea, T
 import {MatRender} from '../../components/mat_render/MatRender';
 import {Mat} from '../../components/mat/Mat';
 import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
+import {analyzeF32Matrix, type ChannelStats} from "../../processing/matrix_analysis.ts";
+import {MatChart} from "../../components/mat_chart/MatChart.tsx";
 
 const INP_TYPE_TEXT = 'text';
 const INP_TYPE_RANDOM = 'random';
@@ -53,6 +55,8 @@ export function OneBlockTest() {
   const [reencode, setReencode] = useState(false)
   const [decoded, setDecoded] = useState("");
   const cvLib = useOpenCV();
+    const [ycrcbStats, setYCrCbStats] = useState<Record<string, ChannelStats> | null>(null);
+    const [rgbStats, setRgbStats] = useState<Record<string, ChannelStats> | null>(null);
 
   const go = useCallback((bytes?: string) => {
     try {
@@ -75,6 +79,12 @@ export function OneBlockTest() {
         const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
         const res = encoder.encode();
         setRes(res);
+        const ycrcbStats: Record<string, ChannelStats> = {}
+        const rgbStats: Record<string, ChannelStats> = {}
+        analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
+        analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
+        setRgbStats(rgbStats)
+        setYCrCbStats(ycrcbStats)
 
         setMat({
             // prime: encoder.prime,
@@ -175,6 +185,8 @@ export function OneBlockTest() {
       </Flex>
     </Flex>
     <Flex direction={'column'} gap={'xl'}>
+        {ycrcbStats && <MatChart chStats={ycrcbStats}/>}
+        {rgbStats && <MatChart chStats={rgbStats}/>}
         {Object.keys(mat).map(key => {
             return (
                 <span key={key}>
