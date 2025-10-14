@@ -6,11 +6,8 @@ export interface Encoder {
     encode: () => any;
 }
 
-type Mat32FC1 = any;
-type MatVector = any;
-
 export class EncoderImpl implements Encoder {
-    private channels: MatVector;
+    private channels: any;
     private bitsIter: BitsIterator;
     private conf: EncodingConf;
     private cv: any;
@@ -18,11 +15,11 @@ export class EncoderImpl implements Encoder {
     private width: number;
 
     // step-by-step matrices for debugging
-    private dataMatrix: Mat32FC1 | null;
-    private ycrcb: Mat32FC1 | null;
-    private transformed: Mat32FC1 | null;
-    private bgr32f: Mat32FC1 | null;
-    private prime: Mat32FC1 | null;
+    private dataMatrix: any;
+    private ycrcb: any;
+    private transformed: any;
+    private bgr32f: any;
+    private prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
         this.height = height;
@@ -83,25 +80,22 @@ export class EncoderImpl implements Encoder {
         // this.prime = this.snapshot();
 
         this.populateDctMatrix();
-        // this.dataMatrix = this.snapshot();
+        this.dataMatrix = this.snapshot();
         console.log('data matrix shapshot ok')
 
-        // const dctCalc = new DctCalc(this.cv);
+        const dctCalc = new DctCalc(this.cv);
         console.log('dct constructor ok')
-        // dctCalc.init()
+        dctCalc.init()
         console.log('applying dct')
-        // this.applyDct(dctCalc);
+        this.applyDct(dctCalc);
         console.log('dct apply ok')
-        // while (this.ch < 3) {
-        //     this.encodeNextBlock(dctCalc);
-        // }
-        // dctCalc.cleanup();
+        dctCalc.cleanup();
         console.log('dct cleanup ok')
-        // this.ycrcb = this.snapshot();
+        this.ycrcb = this.snapshot();
         console.log('ycrcb snapshot ok')
 
 
-        // this.applyTransforms();
+        this.applyTransforms();
         console.log('transforms ok')
 
         this.transformed = this.snapshot();
@@ -121,26 +115,20 @@ export class EncoderImpl implements Encoder {
 
         console.log('encode complete')
 
-        this.transformed.delete();
-        this.bgr32f.delete();
+        // this.transformed.delete();
+        // this.bgr32f.delete();
         this.channels.get(0).delete();
         this.channels.get(1).delete();
         this.channels.get(2).delete();
         this.channels.delete();
 
-        // return this.bgr32f;
-        // const rgb8 = new this.cv.Mat();
-        // this.rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
-        //
-        // return rgb8;
+        return this.bgr32f;
     }
 
     private populateDctMatrix() {
         let x=0, y=0, chIdx=0;
-        console.log('populating')
         while (y < this.height) {
             const downsampling = chIdx == 0 ? 1 : 2;
-            console.log('downsampling', downsampling, 'ch', chIdx, 'xy', x, y, 'x % downsampling', x % downsampling);
             if ((x / 8) % downsampling === 0 && (y / 8) % downsampling === 0) {
 
             const ch = this.channels.get(chIdx);
