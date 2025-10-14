@@ -23,7 +23,7 @@ export function MatChart({chStats}: Props) {
             Object.keys(stats.countByRange).forEach(range => {
                 chanPoints.push({ name: range, count: stats.countByRange[range], color: 'green'})
             });
-            chanPoints.push({ name: '>=1', count: stats.lowerBoundCount, color: 'red'})
+            chanPoints.push({ name: '>=1', count: stats.upperBoundCount, color: 'red'})
             res[chanName] = chanPoints;
         });
         return res;

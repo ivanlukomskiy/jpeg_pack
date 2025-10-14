@@ -146,8 +146,8 @@ export function Benchmark() {
   }, []);
     
       return (
-        <Flex direction={'row'} gap={'xl'}>
-          <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+        <Flex direction={'row'} gap={'xl'} style={{width:'100%'}}>
+          <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px', flexGrow: 0}}>
             <Title size={'lg'}>Settings</Title>
             <NumberInput label="iterations" value={iterations} min={0} onChange={onIterationsChanged} hideControls />
             <NumberInput label="jpeg quality" value={jpegQuality} min={0} max={100} onChange={onJpegQualityChanged} hideControls />
@@ -156,14 +156,14 @@ export function Benchmark() {
               Start
             </Button>
           </Flex>
-          <Flex direction={'column'} gap={'sm'}>
+          <Flex direction={'column'} gap={'sm'} style={{flexGrow: 0}}>
             <Title size={'lg'}>Image</Title>
             <MatRender mat={res} />
               {errByDctPos && <Typography>Err chance per bit</Typography>}
               {errByDctPos && <ErrTable errByName={errByDctPos} />}
             
           </Flex>
-          <Flex direction={'column'} gap={'sm'} style={{width: '300px'}}>
+          <Flex direction={'column'} gap={'sm'} style={{flexGrow: 1}}>
             <Title size={'lg'}>Stats</Title>
             {/* {medianErrorRate !== null && <Typography >Errors rate median: {(medianErrorRate*100.).toFixed(2)}%</Typography>} */}
             
