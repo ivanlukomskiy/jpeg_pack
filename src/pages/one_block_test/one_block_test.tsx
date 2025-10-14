@@ -49,8 +49,8 @@ export function OneBlockTest() {
   // const [inpType, setInpType] = useState(INP_TYPE_BENCHMARK)
   const [inpType, setInpType] = useState(INP_TYPE_BYTES)
   const [inpText, setInpText] = useState("adcd")
-  const [inpBytes, setInpBytes] = useState("86, 119, 123, 231")
-  const [reencode, setReencode] = useState(true)
+  const [inpBytes, setInpBytes] = useState("106, 204, 163, 109, 222, 98, 32, 61, 177, 227, 204, 15, 158, 89, 162, 19, 15, 41")
+  const [reencode, setReencode] = useState(false)
   const [decoded, setDecoded] = useState("");
   const cvLib = useOpenCV();
 
@@ -124,7 +124,7 @@ export function OneBlockTest() {
   }, []);
 
   const randomize = useCallback(() => {
-      const val = randomBytesString(16);
+      const val = randomBytesString(3 * 4 + 3 + 3);
       setInpBytes(val);
       return val;
   }, [])

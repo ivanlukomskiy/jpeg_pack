@@ -105,7 +105,7 @@ function getTextColor(bg: { r: number; g: number; b: number }): string {
 
 function getTextColor2(value: string): string {
     const float = parseFloat(value, 10);
-    if (float < 0) {
+    if (float <= 0) {
         return 'red'
     }
     return getTextColor(getColor(float, 0, 1))

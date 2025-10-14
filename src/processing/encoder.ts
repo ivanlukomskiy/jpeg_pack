@@ -22,6 +22,8 @@ export class EncoderImpl implements Encoder {
     private prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
+        if (height % 16 !== 0 || width % 16 != 0) throw new Error("dimensions should be multiples of 16");
+
         this.height = height;
         this.width = width;
         console.log("cv", cv)
@@ -46,6 +48,7 @@ export class EncoderImpl implements Encoder {
 
     private upscale(mat) {
         const dst = new this.cv.Mat(this.height, this.width, this.cv.CV_32FC1, new this.cv.Scalar(0));
+        // fixme slow
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
                 dst.floatPtr(y, x)[0] = mat.floatPtr(

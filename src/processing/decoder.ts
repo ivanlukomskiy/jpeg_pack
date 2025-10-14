@@ -13,6 +13,7 @@ export class DecoderImpl implements Decoder {
     private res?: Uint8ArrayBuilder;
     private channels: any;
     private height: number;
+    private width: number;
 
     // step-by-step matrices for debugging
     public dataMatrix: any;
@@ -27,10 +28,11 @@ export class DecoderImpl implements Decoder {
 
     decode(bgr32f) {
         this.bgr32f = bgr32f;
-        if (bgr32f.rows % 8 != 0 || bgr32f.cols % 8 != 0) {
-            throw new Error(`image dimensions should be multiples of 8; got ${bgr32f.rows}x${bgr32f.cols}`)
+        if (bgr32f.rows % 16 != 0 || bgr32f.cols % 16 != 0) {
+            throw new Error(`image dimensions should be multiples of 16; got ${bgr32f.rows}x${bgr32f.cols}`)
         }
         this.height = bgr32f.rows;
+        this.width = bgr32f.cols;
         let bitsPerBlock = 0;
         this.conf.chromaConf.forEach(c => {
             bitsPerBlock += c.bitsCapacity * 2
@@ -45,25 +47,88 @@ export class DecoderImpl implements Decoder {
         this.cv.cvtColor(bgr32f, this.ycrcb, this.cv.COLOR_BGR2YCrCb);
         this.image = this.ycrcb;
 
-        this.channels = new this.cv.MatVector();
-        this.cv.split(this.image, this.channels);
+        this.splitToChannels()
 
         this.applyTransforms();
 
-        this.transformed = new this.cv.Mat();
-        this.cv.merge(this.channels, this.transformed);
+        this.transformed = this.snapshot()
 
         const dctCalc = new DctCalc(this.cv);
         dctCalc.init();
         this.inverseDct(dctCalc);
         dctCalc.cleanup();
 
-        this.dataMatrix = new this.cv.Mat();
-        this.cv.merge(this.channels, this.dataMatrix);
+        this.dataMatrix = this.snapshot()
 
         this.decodeDct();
 
         return this.res.toUint8Array();
+    }
+
+    private upscale(mat) {
+        const dst = new this.cv.Mat(this.height, this.width, this.cv.CV_32FC1, new this.cv.Scalar(0));
+        // fixme slow
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                dst.floatPtr(y, x)[0] = mat.floatPtr(
+                    Math.floor(y / 2),
+                    Math.floor(x / 2),
+                )[0];
+            }
+        }
+        return dst;
+    }
+
+    // fixme unite
+    private snapshot() {
+        const channels = new this.cv.MatVector();
+        channels.push_back(this.channels.get(0))
+
+        const upscaled1 = this.upscale(this.channels.get(1));
+        channels.push_back(upscaled1)
+
+        const upscaled2 = this.upscale(this.channels.get(2));
+        channels.push_back(upscaled2)
+
+        const dst = new this.cv.Mat();
+        this.cv.merge(channels, dst);
+        channels.delete();
+        upscaled1.delete();
+        upscaled2.delete();
+
+        return dst;
+    }
+
+    private downsampleBy2(mat) {
+        const dst = new this.cv.Mat(this.height/2, this.width/2, this.cv.CV_32FC1, new this.cv.Scalar(0));
+        // fixme slow
+        for (let y = 0; y < this.height/2; y++) {
+            for (let x = 0; x < this.width/2; x++) {
+                dst.floatPtr(y, x)[0] = mat.floatPtr(
+                    y*2,
+                    x*2,
+                )[0];
+            }
+        }
+        return dst;
+        // const tmp = new this.cv.Mat();
+        // this.cv.resize(src, tmp, new this.cv.Size(src.cols / 2, src.rows / 2), 0, 0, this.cv.INTER_NEAREST);
+        // return tmp;
+    }
+
+    private splitToChannels() {
+        this.channels = new this.cv.MatVector();
+        this.cv.split(this.image, this.channels);
+
+        let tmp = this.channels.get(1);
+        let downsampled = this.downsampleBy2(tmp)
+        this.channels.set(1, downsampled)
+        tmp.delete()
+
+        tmp = this.channels.get(2);
+        downsampled = this.downsampleBy2(tmp)
+        this.channels.set(1, downsampled)
+        tmp.delete()
     }
 
     private applyTransforms() {
@@ -78,44 +143,41 @@ export class DecoderImpl implements Decoder {
     }
 
     private inverseDct(dct: DctCalc) {
-        const newChannels = new this.cv.MatVector();
         for (let chIdx = 0; chIdx < 3; chIdx++) {
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
             const ch = this.channels.get(chIdx);
-            if (conf.length == 0) { // make no changes
-                newChannels.push_back(ch);
-            } else {
+            if (conf.length != 0) { // make no changes
                 const transformed = dct.dct8x8Mat(ch);
-                newChannels.push_back(transformed);
+                this.channels.set(chIdx, transformed);
             }
         }
-        this.channels.delete(); // fixme also delete individual channels??
-        this.channels = newChannels;
-        // console.log("this.channels", this.channels, this.channels.get(2))
     }
 
     private decodeDct() {
         let x=0, y=0, chIdx=0;
 
         while (y < this.height) {
-            const ch = this.channels.get(chIdx);
-            const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-            conf.forEach((c: DctCoefConf) => {
-                const max = (1 << c.bitsCapacity) - 1;
-                const dctCoef = ch.floatPtr(c.y + y, c.x + x)[0];
-                const value = Math.round(dctCoef * max);
-                for (let i = c.bitsCapacity - 1; i >= 0; i--) {
-                    const bitValue = (value >> i) & 1;
-                    this.res?.addBit(bitValue);
-                }
-                console.log("value", c.x,c.y,chIdx, 'rec', value, 'frac', value/max, 'unr', dctCoef * max)
-            })
+            const downsampling = chIdx == 0 ? 1 : 2;
+            if ((x / 8) % downsampling === 0 && (y / 8) % downsampling === 0) {
+                const ch = this.channels.get(chIdx);
+                const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
+                conf.forEach((c: DctCoefConf) => {
+                    const max = (1 << c.bitsCapacity) - 1;
+                    const dctCoef = ch.floatPtr(c.y / downsampling + y, c.x / downsampling + x)[0];
+                    const value = Math.round(dctCoef * max);
+                    for (let i = c.bitsCapacity - 1; i >= 0; i--) {
+                        const bitValue = (value >> i) & 1;
+                        this.res?.addBit(bitValue);
+                    }
+                    console.log("value", c.x, c.y, chIdx, 'rec', value, 'frac', value / max, 'unr', dctCoef * max)
+                })
+            }
             // fixme i can do better
             chIdx++;
             if (chIdx >= 3) {
                 x += 8;
                 chIdx = 0;
-                if (x >= ch.cols) {
+                if (x >= this.width) {
                     x = 0;
                     y += 8;
                 }

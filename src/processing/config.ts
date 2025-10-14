@@ -17,12 +17,12 @@ export interface EncodingConf {
 }
 
 export const DctConfs: DctCoefConf[] = [
-    {x: 0, y: 0, bitsCapacity: 2},
+    {x: 0, y: 0, bitsCapacity: 4},
     {x: 1, y: 0, bitsCapacity: 4},
     {x: 0, y: 1, bitsCapacity: 4},
     {x: 1, y: 1, bitsCapacity: 4},
-    {x: 2, y: 0, bitsCapacity: 3},
-    {x: 0, y: 2, bitsCapacity: 3},
+    {x: 2, y: 0, bitsCapacity: 4},
+    {x: 0, y: 2, bitsCapacity: 4},
     // {x: 2, y: 2, bitsCapacity: 2},
 ] // 24
 
@@ -36,13 +36,14 @@ export const DctConfsChroma: DctCoefConf[] = [
 
 export const DefaultEncodingConf: EncodingConf = {
     lumaConf: DctConfs,
-    chromaConf: DctConfsChroma,
+    chromaConf: DctConfs,
+    // chromaConf: DctConfsChroma,
     lumaDctToImageTransform: {
         multiplier: .55,
         addition: .25,
     },
     chromaDctToImageTransform: {
-        multiplier: .3,
+        multiplier: .6,
         addition: .5,
     }
 }
