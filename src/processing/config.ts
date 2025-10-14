@@ -45,11 +45,11 @@ export const DefaultEncodingConf: EncodingConf = {
     // chromaConf: DctConfs,
     chromaConf: DctConfsChroma,
     lumaDctToImageTransform: {
-        multiplier: .55,
-        addition: .25,
+        multiplier: .4,
+        addition: .3,
     },
     chromaDctToImageTransform: {
-        multiplier: .1,
+        multiplier: .4,
         // multiplier: .0,
         addition: .5,
     }

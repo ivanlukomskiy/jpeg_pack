@@ -40,7 +40,7 @@ interface PercentilePoint {
 
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
-    const [iterations, setIterations] = useState(1);
+    const [iterations, setIterations] = useState(20);
     const [jpegQuality, setJpegQuality] = useState(95);
     const [blocksPerAxis, setBlocksPerAxis] = useState(4);
     const [progress, setProgress] = useState<number | null>(null);
@@ -76,7 +76,7 @@ export function Benchmark() {
           const iter = BitsIteratorImpl.fromBytes(original);
           const encoder = new EncoderImpl(cvLib.cv, 16 * blocksPerAxis, 16 * blocksPerAxis, iter, DefaultEncodingConf)
           const res = encoder.encode();
-          analyzeF32Matrix(ycrcbStats, encoder.ycrcb, true);
+          analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
           analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
     
           const {bgr32fDecoded} = await jpegRoundTripBgr32f(cvLib.cv, res, jpegQuality);
