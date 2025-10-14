@@ -21,6 +21,7 @@ export const DctConfs: DctCoefConf[] = [
     {x: 1, y: 1, bitsCapacity: 3},
     {x: 2, y: 2, bitsCapacity: 1},
     {x: 3, y: 3, bitsCapacity: 2},
+    {x: 4, y: 4, bitsCapacity: 2},
 
     {x: 1, y: 0, bitsCapacity: 3},
     {x: 0, y: 1, bitsCapacity: 3},
@@ -33,6 +34,9 @@ export const DctConfs: DctCoefConf[] = [
 
     {x: 4, y: 0, bitsCapacity: 3},
     {x: 0, y: 4, bitsCapacity: 3},
+
+    {x: 5, y: 0, bitsCapacity: 3},
+    {x: 0, y: 5, bitsCapacity: 3},
 
     {x: 2, y: 1, bitsCapacity: 2},
     {x: 1, y: 2, bitsCapacity: 2},
