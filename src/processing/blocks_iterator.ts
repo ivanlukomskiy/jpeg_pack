@@ -75,3 +75,25 @@ export class DctCoefIterator {
         }
     }
 }
+
+export interface DctConfStats {
+    offsetToName: Record<number, string>;
+    blockSize: number;
+}
+
+export function buildDctConfStats(conf: EncodingConf): DctConfStats {
+    const iter = new DctCoefIterator(16, 16, conf);
+    const offsetToName: Record<number, string> = {};
+    let offset = 0;
+    let blockSize = 0;
+    let next = iter.next();
+    while (next) {
+        for (let i = 0; i < next.bitsCapacity; i++) {
+            offsetToName[offset] = `${next.blockType}_${next.confX},${next.confY}`
+            offset++;
+            blockSize++;
+        }
+        next = iter.next();
+    }
+    return { offsetToName, blockSize }
+}

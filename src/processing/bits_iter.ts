@@ -1,4 +1,5 @@
 import {type DctCoefConf, DefaultEncodingConf} from "./config";
+import type {DctConfStats} from "./blocks_iterator.ts";
 
 export interface BitsIterator {
   next(): number | null;
@@ -126,52 +127,9 @@ export function compareBytes(array1: Uint8Array, array2: Uint8Array): number {
     return differentBytes;
 }
 
-let offsetToDct_: null | Record<number, string> = null;
-let blockSize = 0;
-
-function buildOffsetMap() {
-  if (offsetToDct_ !== null) return offsetToDct_;
-  const offsetToDct: Record<number, string> = {};
-  let offset = 0;
-  DefaultEncodingConf.lumaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      offsetToDct[offset] = `l_${c.x},${c.y}`
-      offset++;
-      blockSize++;
-    }
-  });
-  DefaultEncodingConf.chromaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      offsetToDct[offset] = `cr_${c.x},${c.y}`
-      offset++;
-      blockSize++;
-    }
-  });
-  DefaultEncodingConf.chromaConf.forEach(c => {
-    for (let i = 0; i < c.bitsCapacity; i++) {
-      offsetToDct[offset] = `cb_${c.x},${c.y}`
-      offset++;
-      blockSize++;
-    }
-  });
-  for (let i = 0; i < 3; i++) {
-      DefaultEncodingConf.lumaConf.forEach(c => {
-          for (let i = 0; i < c.bitsCapacity; i++) {
-              offsetToDct[offset] = `l_${c.x},${c.y}`
-              offset++;
-              blockSize++;
-          }
-      });
-  }
-  console.log("offsetToDct", offsetToDct)
-  offsetToDct_ = offsetToDct;
-  return offsetToDct_;
-}
-
-export function buildErrSourceAcc() {
-  const offsetMap = buildOffsetMap();
+export function buildErrSourceAcc(stats: DctConfStats) {
   const res: Record<string, number> = {};
-  Object.values(offsetMap).forEach(val => {
+  Object.values(stats.offsetToName).forEach(val => {
     res[val] = 0;
   })
   return res;
@@ -191,12 +149,15 @@ export function normalizeErrorSources(acc: Record<string, number>, size: number)
     accountForErrors(acc, "cb", DefaultEncodingConf.chromaConf, size);
 }
 
-export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, acc: Record<string, number>) {
+export function calculateErrorSources(
+    array1: Uint8Array,
+    array2: Uint8Array,
+    acc: Record<string, number>,
+    stats: DctConfStats,
+) {
   if (array1.length !== array2.length) {
     throw new Error('Arrays must be of the same length');
   }
-  const offsetMap = buildOffsetMap();
-  
   for (let i = 0; i < array1.length; i++) {
         const byte1 = array1[i];
         const byte2 = array2[i];
@@ -205,8 +166,8 @@ export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, ac
             const bit1 = (byte1 >> bitPos) & 1;
             const bit2 = (byte2 >> bitPos) & 1;
             if (bit1 !== bit2) {
-              const offset = (i * 8 + (7 - bitPos)) % blockSize;
-              const dctName = offsetMap[offset];
+              const offset = (i * 8 + (7 - bitPos)) % stats.blockSize;
+              const dctName = stats.offsetToName[offset];
               acc[dctName]++;
               // console.log(dctName, '++', acc[dctName], (i * 8 + (7 - bitPos)));
             }

@@ -1,14 +1,22 @@
-import { Button, Flex, NumberInput, SegmentedControl, Title, Typography } from "@mantine/core";
-import { MatRender } from "../../components/mat_render/MatRender";
-import { DefaultEncodingConf } from "../../processing/config";
-import { BitsIteratorImpl, buildErrSourceAcc, calculateErrorSources, compareBits, compareBytes, normalizeErrorSources, randomUint8Arr } from "../../processing/bits_iter";
-import { EncoderImpl } from "../../processing/encoder";
-import { DecoderImpl } from "../../processing/decoder";
-import { useCallback, useMemo, useState } from "react";
-import { useOpenCV } from "../../hooks/opencv";
-import { BarChart } from "@mantine/charts";
+import {Button, Flex, NumberInput, Title, Typography} from "@mantine/core";
+import {MatRender} from "../../components/mat_render/MatRender";
+import {DefaultEncodingConf} from "../../processing/config";
+import {
+    BitsIteratorImpl,
+    buildErrSourceAcc,
+    calculateErrorSources,
+    compareBits,
+    compareBytes,
+    normalizeErrorSources,
+    randomUint8Arr
+} from "../../processing/bits_iter";
+import {EncoderImpl} from "../../processing/encoder";
+import {DecoderImpl} from "../../processing/decoder";
+import {useCallback, useMemo, useState} from "react";
+import {useOpenCV} from "../../hooks/opencv";
+import {BarChart} from "@mantine/charts";
 import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
-
+import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
 
 
 function getPercentile(sortedNumbers: number[], percentile: number) {
@@ -40,6 +48,7 @@ export function Benchmark() {
     const [errByDctPos, setErrByDctPos] = useState<Record<string, number> | null>(null);
 
     const benchmark = useCallback(async () => {
+        try {
         let size = 0;
         DefaultEncodingConf.chromaConf.forEach(c => {
           size += c.bitsCapacity * 2 / 4;
@@ -48,12 +57,13 @@ export function Benchmark() {
           size += c.bitsCapacity;
         })
         size *= blocksPerAxis * blocksPerAxis;
+        const stats = buildDctConfStats(DefaultEncodingConf);
     
         const bitRates = [];
         const byteRates = [];
         setBitErrRate([]);
         setProgress(0.);
-        const acc = buildErrSourceAcc();
+        const acc = buildErrSourceAcc(stats);
         for (let i = 0; i < iterations; i ++) {
           const original = randomUint8Arr(size);
           const iter = BitsIteratorImpl.fromBytes(original);
@@ -69,7 +79,7 @@ export function Benchmark() {
           console.log("decoded", decoded)
           const bitErrorsCount = compareBits(original, decoded)
           const byteErrorsCount = compareBytes(original, decoded)
-          calculateErrorSources(original, decoded, acc);
+          calculateErrorSources(original, decoded, acc, stats);
           bitRates.push(bitErrorsCount / size)
           byteRates.push(byteErrorsCount / original.length)
           setBitErrRate([...bitRates])
@@ -81,19 +91,24 @@ export function Benchmark() {
         console.log('acc aft', acc)
         setErrByDctPos(acc); // fixme looks like it gets calculated wrong, need to inverse-test it
         setProgress(null);
+        } catch(e) {
+            console.error(e)
+            setProgress(null);
+            return null;
+        }
       }, [cvLib, jpegQuality, iterations, blocksPerAxis])
 
       const bitPercentiles = useMemo(() => {
-        if (!bitErrRates || bitErrRates.length == 0) return null;
-        const sorted = [...bitErrRates].sort((a, b) => a - b);
-        const res: PercentilePoint[] = [];
-        percentilePoints.forEach(p => {
-            res.push({
-                value: getPercentile(sorted, p) * 100,
-                percentile: `p${p}`,
-            })
-        })
-        return res;
+          if (!bitErrRates || bitErrRates.length == 0) return null;
+          const sorted = [...bitErrRates].sort((a, b) => a - b);
+          const res: PercentilePoint[] = [];
+          percentilePoints.forEach(p => {
+              res.push({
+                  value: getPercentile(sorted, p) * 100,
+                  percentile: `p${p}`,
+              })
+          })
+          return res;
       }, [bitErrRates])
 
       const bytePercentiles = useMemo(() => {
