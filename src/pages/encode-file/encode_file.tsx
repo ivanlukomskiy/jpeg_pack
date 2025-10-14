@@ -51,28 +51,33 @@ const id = generateTimestampedId(); // "2024-01-15-aB3d9fG7"
 async function decodeJpeg(cv, jpegBytes: Uint8Array) {
     const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
 
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.src = url;
-  await img.decode();
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
 
-  const decCanvas = document.createElement('canvas');
-  decCanvas.width = img.naturalWidth;
-  decCanvas.height = img.naturalHeight;
-  const dctx = decCanvas.getContext('2d');
-  dctx.drawImage(img, 0, 0);
-  URL.revokeObjectURL(url);
+    const decCanvas = document.createElement('canvas');
+    decCanvas.width = img.naturalWidth;
+    decCanvas.height = img.naturalHeight;
+    const dctx = decCanvas.getContext('2d');
+    dctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
 
-  // 5) Read pixels back to Mat (RGBA) without cv.imread
-  const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
-  const rgbaDec = cv.matFromImageData(imageData);
+    // 5) Read pixels back to Mat (RGBA) without cv.imread
+    const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
+    const rgbaDec = cv.matFromImageData(imageData);
 
-  // 6) RGBA -> RGB Mat
-  const rgb8Decoded = new cv.Mat();
-  cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
-  rgbaDec.delete();
+    // 6) RGBA -> RGB Mat (uint8)
+    const rgb8Decoded = new cv.Mat();
+    cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
+    rgbaDec.delete();
 
-  return { rgb8Decoded, blob };
+    // 7) Convert RGB uint8 to RGB float32 (CV_32FC3), normalize to [0, 1]
+    const rgb32fDecoded = new cv.Mat();
+    rgb8Decoded.convertTo(rgb32fDecoded, cv.CV_32F, 1.0 / 255.0);
+    rgb8Decoded.delete();
+
+    return { rgb32fDecoded, blob };
 }
 
 function downloadFile(filename: string, data: Uint8Array) {
@@ -137,14 +142,14 @@ export function EncodeFile() {
         const data = await fileToUint8Array(decFile);
         const ss = await getJpegSubsampling(decFile)
         console.log("subsampling info", ss)
-        const {rgb8Decoded} = await decodeJpeg(cvLib.cv, data);
+        const {rgb32fDecoded} = await decodeJpeg(cvLib.cv, data);
 
         const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-        const decoded = decoder.decode(rgb8Decoded);
+        const decoded = decoder.decode(rgb32fDecoded);
         const [filename, fileData] = await decodeFile(decoded);
         console.log(filename)
         downloadFile(filename, fileData)
-          setRes(rgb8Decoded);
+          setRes(rgb32fDecoded);
         //   console.log('decoded')
      
         // console.log('median errors fraction', getMedian(rates))

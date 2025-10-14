@@ -17,20 +17,23 @@ export interface EncodingConf {
 }
 
 export const DctConfs: DctCoefConf[] = [
-    {x: 0, y: 0, bitsCapacity: 2},
+    {x: 0, y: 0, bitsCapacity: 3},
     {x: 1, y: 0, bitsCapacity: 3},
     {x: 0, y: 1, bitsCapacity: 3},
     {x: 1, y: 1, bitsCapacity: 3},
+
     {x: 2, y: 0, bitsCapacity: 3},
     {x: 0, y: 2, bitsCapacity: 3},
-    {x: 2, y: 2, bitsCapacity: 3},
-    {x: 3, y: 0, bitsCapacity: 1},
-    {x: 0, y: 3, bitsCapacity: 1},
-    {x: 2, y: 1, bitsCapacity: 1},
-    {x: 1, y: 2, bitsCapacity: 1},
 
-    {x: 1, y: 3, bitsCapacity: 1},
-    {x: 3, y: 1, bitsCapacity: 1},
+    {x: 2, y: 2, bitsCapacity: 1},
+    {x: 3, y: 0, bitsCapacity: 3},
+    {x: 0, y: 3, bitsCapacity: 3},
+
+    {x: 2, y: 1, bitsCapacity: 2},
+    {x: 1, y: 2, bitsCapacity: 2},
+
+    {x: 1, y: 3, bitsCapacity: 3},
+    {x: 3, y: 1, bitsCapacity: 2},
 ] // 24
 
 // 3 * 4 + 2 -> 14 bytes?
@@ -57,11 +60,11 @@ export const DefaultEncodingConf: EncodingConf = {
     // chromaConf: DctConfs,
     chromaConf: DctConfsChroma,
     lumaDctToImageTransform: {
-        multiplier: .25,
+        multiplier: .21,
         addition: .27,
     },
     chromaDctToImageTransform: {
-        multiplier: .25,
+        multiplier: .21,
         // multiplier: .0,
         addition: .5,
     }
