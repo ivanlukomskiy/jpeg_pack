@@ -10,6 +10,7 @@ import { sampleText } from "../../processing/sample_text";
 import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
 import { decodeFile, encodeFile, getApproxEffectiveCapacityBytes } from "../../models/protocol";
 import {getJpegSubsampling} from "../../processing/utils.ts";
+import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
 
 export function fileToUint8Array(file: File): Promise<Uint8Array> {
     return new Promise((resolve, reject) => {
@@ -50,23 +51,6 @@ const id = generateTimestampedId(); // "2024-01-15-aB3d9fG7"
 async function decodeJpeg(cv, jpegBytes: Uint8Array) {
     const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
 
-//   // --- ENCODE via Canvas ---
-//   // 1) RGB -> RGBA (for canvas)
-//   let rgba = new cv.Mat();
-//   cv.cvtColor(rgb8, rgba, cv.COLOR_RGB2RGBA);
-
-//   // 2) Draw to a canvas
-//   const encCanvas = document.createElement('canvas');
-//   encCanvas.width = rgba.cols;
-//   encCanvas.height = rgba.rows;
-//   cv.imshow(encCanvas, rgba);
-//   rgba.delete();
-
-//   // 3) Encode to JPEG using browser encoder
-//   const blob = await new Promise(res => encCanvas.toBlob(res, 'image/jpeg', quality));
-
-  // --- DECODE via Canvas/ImageData ---
-  // 4) Decode blob to an <img> and draw it
   const url = URL.createObjectURL(blob);
   const img = new Image();
   img.src = url;
@@ -117,33 +101,16 @@ export function EncodeFile() {
     const [decFile, setDecFile] = useState<File | null>(null);
     const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
-    const [w, setW] = useState(1080);
-    const [h, setH] = useState(1080);
+    const [w, setW] = useState(1072);
+    const [h, setH] = useState(1072);
     const [inpText, setInpText] = useState(sampleText)
 
-    const bytesPerBlock = useMemo(() => {
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
-        })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        return size / 8;
+    const dctStats = useMemo(() => {
+        return buildDctConfStats(DefaultEncodingConf);
     }, [])
 
     const encode = useCallback(async () => {
         if (!encFile) return;
-        const blocksSide = 8;
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
-        })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        size *= blocksSide * blocksSide;
-
         const data = await fileToUint8Array(encFile);
         const encoded = await encodeFile(encFile.name, data)
     
@@ -161,7 +128,7 @@ export function EncodeFile() {
           downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg");
      
         // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, encFile])
+      }, [cvLib, w, h, encFile])
 
 
 
@@ -181,7 +148,7 @@ export function EncodeFile() {
         //   console.log('decoded')
      
         // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, decFile])
+      }, [cvLib, decFile])
 
     const onSetW = useCallback((e) => {
         setW(e);
@@ -195,8 +162,8 @@ export function EncodeFile() {
     }, []);
 
     const capacityBytes = useMemo(() => {
-        return w / 8 * h / 8 * bytesPerBlock;
-    }, [w, h])
+        return w / 16 * h / 16 * dctStats.blockSizeBits / 8;
+    }, [w, h, dctStats.blockSizeBits])
 
     const approxEffectiveCapacityBytes = useMemo(() => {
         return getApproxEffectiveCapacityBytes(capacityBytes);
@@ -227,7 +194,7 @@ export function EncodeFile() {
             <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
             <Typography>Effective: ~{(approxEffectiveCapacityBytes / 1024).toFixed(2)} KB</Typography>
             {/* <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography> */}
-            <Typography>Bytes per block: {bytesPerBlock}</Typography>
+            <Typography>Bytes per 16x16 block: {dctStats.blockSizeBits}</Typography>
           </Flex>}
 
           {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>

@@ -152,7 +152,7 @@ export function calculateErrorSources(
             const bit1 = (byte1 >> bitPos) & 1;
             const bit2 = (byte2 >> bitPos) & 1;
             if (bit1 !== bit2) {
-              const offset = (i * 8 + (7 - bitPos)) % stats.blockSize;
+              const offset = (i * 8 + (7 - bitPos)) % stats.blockSizeBits;
               const dctName = stats.offsetToName[offset];
               acc[dctName]++;
               // console.log(dctName, '++', acc[dctName], (i * 8 + (7 - bitPos)));

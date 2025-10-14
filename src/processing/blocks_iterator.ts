@@ -81,7 +81,7 @@ export class DctCoefIterator {
 export interface DctConfStats {
     offsetToName: Record<number, string>;
     nameToBitsInBlock: Record<string, number>;
-    blockSize: number;
+    blockSizeBits: number;
 }
 
 function blockName(type: BlockType, confX: number, confY: number) {
@@ -106,7 +106,7 @@ export function buildDctConfStats(conf: EncodingConf): DctConfStats {
         nameToBitsInBlock[name] += next.bitsCapacity;
         next = iter.next();
     }
-    return { offsetToName, blockSize, nameToBitsInBlock }
+    return { offsetToName, blockSizeBits: blockSize, nameToBitsInBlock }
 }
 
 export function normalizeErrorSources(

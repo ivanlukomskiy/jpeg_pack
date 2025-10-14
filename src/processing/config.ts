@@ -57,7 +57,7 @@ export const DefaultEncodingConf: EncodingConf = {
     // chromaConf: DctConfs,
     chromaConf: DctConfsChroma,
     lumaDctToImageTransform: {
-        multiplier: .22,
+        multiplier: .25,
         addition: .27,
     },
     chromaDctToImageTransform: {

@@ -62,7 +62,7 @@ export function Benchmark() {
         // })
         // size *= blocksPerAxis * blocksPerAxis;
         const stats = buildDctConfStats(DefaultEncodingConf);
-        const size = stats.blockSize * blocksPerAxis * blocksPerAxis;
+        const size = stats.blockSizeBits * blocksPerAxis * blocksPerAxis;
         const ycrcbStats: Record<string, ChannelStats> = {}
         const rgbStats: Record<string, ChannelStats> = {}
 
