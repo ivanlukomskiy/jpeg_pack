@@ -59,7 +59,7 @@ function displayImage(mat: any, canvas: HTMLCanvasElement) {
 }
 
 
-export function downloadMatAsJpeg(mat, filename = 'image.jpg') {
+export function downloadMatAsJpeg(mat, filename = 'image.jpg', quality=0.9) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -81,7 +81,7 @@ export function downloadMatAsJpeg(mat, filename = 'image.jpg') {
         data[i + 3] = 255; // A
     }
     ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
     const link = document.createElement('a');
     link.download = filename;
     link.href = dataUrl;

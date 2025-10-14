@@ -130,7 +130,7 @@ export function EncodeFile() {
         //   const decoded = decoder.decode(rgb8Decoded);
           setRes(res);
         //   console.log('encoded')
-          downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg");
+          downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg", 0.1);
      
         // console.log('median errors fraction', getMedian(rates))
       }, [cvLib, w, h, encFile])

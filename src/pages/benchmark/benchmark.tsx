@@ -41,7 +41,7 @@ interface PercentilePoint {
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
     const [iterations, setIterations] = useState(20);
-    const [jpegQuality, setJpegQuality] = useState(95);
+    const [jpegQuality, setJpegQuality] = useState(.95);
     const [blocksPerAxis, setBlocksPerAxis] = useState(4);
     const [progress, setProgress] = useState<number | null>(null);
     const cvLib = useOpenCV();
