@@ -166,11 +166,12 @@ export function Benchmark() {
           <Flex direction={'column'} gap={'sm'} style={{flexGrow: 1}}>
             <Title size={'lg'}>Stats</Title>
             {/* {medianErrorRate !== null && <Typography >Errors rate median: {(medianErrorRate*100.).toFixed(2)}%</Typography>} */}
-            
-            {bitPercentiles && <>
+            <Flex direction={'row'} gap={'xl'}>
+            {bitPercentiles && <Flex direction={'column'}>
                 <Typography>Bit err rate, % by percentiles</Typography>
                 <BarChart
                     h={200}
+                    w={300}
                     data={bitPercentiles}
                     dataKey="percentile"
                     series={[
@@ -178,11 +179,12 @@ export function Benchmark() {
                     ]}
                     tickLine="y"
                 />
-            </>}
-            {bytePercentiles && <>
+            </Flex>}
+            {bytePercentiles && <Flex direction={'column'}>
                 <Typography>Byte err rate, % by percentiles</Typography>
                 <BarChart
                     h={200}
+                    w={300}
                     data={bytePercentiles}
                     dataKey="percentile"
                     series={[
@@ -190,7 +192,8 @@ export function Benchmark() {
                     ]}
                     tickLine="y"
                 />
-            </>}
+            </Flex>}
+            </Flex>
           {ycrcbStats && <MatChart chStats={ycrcbStats}/>}
         {rgbStats && <MatChart chStats={rgbStats}/>}
         </Flex>

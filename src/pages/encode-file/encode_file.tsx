@@ -214,7 +214,7 @@ export function EncodeFile() {
           </Flex>}
           {res && <Flex direction={'column'} gap={'sm'}>
             <Title size={'lg'}>Result</Title>
-            <MatRender mat={res} />
+            <MatRender mat={res} size={512} />
           </Flex>}
           
         </Flex>

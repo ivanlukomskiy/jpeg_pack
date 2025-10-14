@@ -30,7 +30,7 @@ export function MatChart({chStats}: Props) {
     }, [chStats])
 
     return useMemo(() => (
-        <Flex direction={'row'} style={{width:'100%', maxWidth: '1200px'}}>
+        <Flex direction={'row'} style={{width:'100%', maxWidth: '1200px'}} gap={'xl'}>
             {Object.keys(chartData).map(chanName => (
                 <Flex direction={'column'} key={chanName} style={{flexGrow: 1}}>
                 {/*<Flex direction={'column'} key={chanName} style={{width: '300px'}}>*/}

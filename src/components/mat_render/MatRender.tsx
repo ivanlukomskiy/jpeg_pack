@@ -93,9 +93,10 @@ export function downloadMatAsJpeg(mat, filename = 'image.jpg', quality=0.9) {
 
 interface Props {
     mat: any;
+    size?: number;
 }
 
-export function MatRender({mat}: Props) {
+export function MatRender({mat, size=240}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const download = useCallback(() => {
@@ -110,7 +111,7 @@ export function MatRender({mat}: Props) {
   
     return (
         <div style={{width: '100%'}}>
-            <canvas ref={canvasRef} width={240} height={240} onClick={download} style={{cursor: mat ? 'pointer' : undefined }}></canvas>
+            <canvas ref={canvasRef} width={size} height={size} onClick={download} style={{cursor: mat ? 'pointer' : undefined }}></canvas>
         </div>
     )
 }
