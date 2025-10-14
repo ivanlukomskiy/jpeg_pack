@@ -1,9 +1,9 @@
 // ===== DCT/IDCT for OpenCV.js (8x8 block JPEG-style) =====
 
 export class DctCalc {
-  cv: any;
-  DCT8: any;
-  DCT8T: any;
+  private cv: any;
+  private DCT8: any;
+  private DCT8T: any;
 
   constructor(cv: any) {
     this.cv = cv;
@@ -61,7 +61,7 @@ private processBlocks8(src32f, inverse: boolean) {
   if ((w % 8) !== 0 || (h % 8) !== 0) {
     throw new Error("Image size must be a multiple of 8 (pad beforehand if needed).");
   }
-  const dst32f = new this.cv.Mat.zeros(h, w, this.cv.CV_32F);
+  const dst32f = this.cv.Mat.zeros(h, w, this.cv.CV_32F);
   // temp 8x8 buffers
   const srcBlock = new this.cv.Mat(8, 8, this.cv.CV_32F);
   const dstBlock = new this.cv.Mat(8, 8, this.cv.CV_32F);

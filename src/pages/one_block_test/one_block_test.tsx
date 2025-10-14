@@ -73,17 +73,17 @@ export function OneBlockTest() {
     }
     const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
     const res = encoder.encode();
-    setRes(res);
+    // setRes(res.clone());
 
-    setMat({
-        // prime: encoder.prime,
-        dataMatrix: encoder.dataMatrix,
-        ycrcb: encoder.ycrcb,
-        transformed: encoder.transformed,
-        bgr32f: encoder.bgr32f,
-        res,
-    })
-      return res;
+    // setMat({
+    //     // prime: encoder.prime,
+    //     dataMatrix: encoder.dataMatrix.clone(),
+    //     ycrcb: encoder.ycrcb.clone(),
+    //     transformed: encoder.transformed.clone(),
+    //     bgr32f: encoder.bgr32f.clone(),
+    //     res: res.clone(),
+    // })
+    //   return res.clone();
   }, [cvLib, randInputSize, inpType, inpText, inpBytes])
   
   const decode = useCallback(async (res: any) => {
