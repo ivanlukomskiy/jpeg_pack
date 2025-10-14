@@ -42,7 +42,7 @@ export function Benchmark() {
     const benchmark = useCallback(async () => {
         let size = 0;
         DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
+          size += c.bitsCapacity * 2 / 4;
         })
         DefaultEncodingConf.lumaConf.forEach(c => {
           size += c.bitsCapacity;

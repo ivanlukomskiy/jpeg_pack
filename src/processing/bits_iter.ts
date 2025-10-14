@@ -154,6 +154,16 @@ function buildOffsetMap() {
       blockSize++;
     }
   });
+  for (let i = 0; i < 3; i++) {
+      DefaultEncodingConf.lumaConf.forEach(c => {
+          for (let i = 0; i < c.bitsCapacity; i++) {
+              offsetToDct[offset] = `l_${c.x},${c.y}`
+              offset++;
+              blockSize++;
+          }
+      });
+  }
+  console.log("offsetToDct", offsetToDct)
   offsetToDct_ = offsetToDct;
   return offsetToDct_;
 }
@@ -198,7 +208,7 @@ export function calculateErrorSources(array1: Uint8Array, array2: Uint8Array, ac
               const offset = (i * 8 + (7 - bitPos)) % blockSize;
               const dctName = offsetMap[offset];
               acc[dctName]++;
-              console.log(dctName, '++', acc[dctName]);
+              // console.log(dctName, '++', acc[dctName], (i * 8 + (7 - bitPos)));
             }
         }
     }

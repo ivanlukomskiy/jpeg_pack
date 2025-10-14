@@ -124,7 +124,7 @@ export function OneBlockTest() {
   }, []);
 
   const randomize = useCallback(() => {
-      const val = randomBytesString(3 * 4 + 3 + 3);
+      const val = randomBytesString(3 * 4 + 2 + 2);
       setInpBytes(val);
       return val;
   }, [])

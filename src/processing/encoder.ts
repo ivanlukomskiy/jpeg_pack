@@ -1,6 +1,7 @@
 import type { BitsIterator } from "./bits_iter";
 import type { DctCoefConf, EncodingConf } from "./config";
 import { DctCalc } from "./dct";
+import {DctCoefIterator} from "./blocks_iterator.ts";
 
 export interface Encoder {
     encode: () => any;
@@ -80,8 +81,6 @@ export class EncoderImpl implements Encoder {
     }
 
     public encode() {
-        // this.prime = this.snapshot();
-
         this.populateDctMatrix();
         this.dataMatrix = this.snapshot();
         console.log('data matrix shapshot ok')
@@ -129,34 +128,16 @@ export class EncoderImpl implements Encoder {
     }
 
     private populateDctMatrix() {
-        let x=0, y=0, chIdx=0;
-        while (y < this.height) {
-            const downsampling = chIdx == 0 ? 1 : 2;
-            if ((x / 8) % downsampling === 0 && (y / 8) % downsampling === 0) {
-
-            const ch = this.channels.get(chIdx);
-            const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-            // const transform = chIdx == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-            conf.forEach((c: DctCoefConf) => {
-                const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
-                const max = (1 << c.bitsCapacity) - 1;
-                const val = byte / max;
-                // const withTransform = val * transform.multiplier + transform.addition;
-                // ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
-                ch.floatPtr(c.y + y / downsampling, c.x + x / downsampling)[0] = val;
-                console.log('stored (', c.x + x / downsampling, c.y + y / downsampling, chIdx, ') orig', byte, 'frac', val)
-            })
-            }
-            // fixme i can do better
-            chIdx++;
-            if (chIdx >= 3) {
-                x += 8;
-                chIdx = 0;
-                if (x >= this.width) {
-                    x = 0;
-                    y += 8;
-                }
-            }
+        const iter = new DctCoefIterator(this.width, this.height, this.conf)
+        let next = iter.next()
+        while (next) {
+            const ch = this.channels.get(next.chIdx);
+            const byte = this.bitsIter.nextN(next.bitsCapacity) ?? 0;
+            const max = (1 << next.bitsCapacity) - 1;
+            const val = byte / max;
+            ch.floatPtr(next.y, next.x)[0] = val;
+            console.log('stored (', next.x, next.y, next.chIdx, ') orig', byte, 'frac', val)
+            next = iter.next()
         }
         console.log('populate complete')
     }

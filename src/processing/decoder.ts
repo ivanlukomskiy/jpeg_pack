@@ -1,6 +1,7 @@
 import type {DctCoefConf, EncodingConf} from "./config";
 import {DctCalc} from "./dct";
 import {Uint8ArrayBuilder} from "./uint_array_builder";
+import {DctCoefIterator} from "./blocks_iterator.ts";
 
 export interface Decoder {
     decode: (mat) => any;
@@ -154,34 +155,20 @@ export class DecoderImpl implements Decoder {
     }
 
     private decodeDct() {
-        let x=0, y=0, chIdx=0;
-
-        while (y < this.height) {
-            const downsampling = chIdx == 0 ? 1 : 2;
-            if ((x / 8) % downsampling === 0 && (y / 8) % downsampling === 0) {
-                const ch = this.channels.get(chIdx);
-                const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-                conf.forEach((c: DctCoefConf) => {
-                    const max = (1 << c.bitsCapacity) - 1;
-                    const dctCoef = ch.floatPtr(c.y + y / downsampling, c.x + x / downsampling)[0];
-                    const value = Math.round(dctCoef * max);
-                    for (let i = c.bitsCapacity - 1; i >= 0; i--) {
-                        const bitValue = (value >> i) & 1;
-                        this.res?.addBit(bitValue);
-                    }
-                    console.log("value (", c.x, c.y, chIdx, ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
-                })
+        const iter = new DctCoefIterator(this.width, this.height, this.conf)
+        let next = iter.next()
+        while (next) {
+            const ch = this.channels.get(next.chIdx);
+            const max = (1 << next.bitsCapacity) - 1;
+            const dctCoef = ch.floatPtr(next.y, next.x)[0];
+            const value = Math.round(dctCoef * max);
+            for (let i = next.bitsCapacity - 1; i >= 0; i--) {
+                const bitValue = (value >> i) & 1;
+                this.res?.addBit(bitValue);
             }
-            // fixme i can do better
-            chIdx++;
-            if (chIdx >= 3) {
-                x += 8;
-                chIdx = 0;
-                if (x >= this.width) {
-                    x = 0;
-                    y += 8;
-                }
-            }
+            console.log("value (", next.x, next.y, next.chIdx,
+                ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
+            next = iter.next()
         }
     }
 }
