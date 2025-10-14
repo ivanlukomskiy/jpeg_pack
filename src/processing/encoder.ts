@@ -143,8 +143,8 @@ export class EncoderImpl implements Encoder {
                 const val = byte / max;
                 // const withTransform = val * transform.multiplier + transform.addition;
                 // ch.floatPtr(c.y + y, c.x + x)[0] = withTransform;
-                ch.floatPtr(c.y / downsampling + y, c.x / downsampling + x)[0] = val;
-                console.log('stored ', c.x / downsampling + x, c.y / downsampling + y, chIdx, 'orig', byte, 'frac', val)
+                ch.floatPtr(c.y + y / downsampling, c.x + x / downsampling)[0] = val;
+                console.log('stored (', c.x + x / downsampling, c.y + y / downsampling, chIdx, ') orig', byte, 'frac', val)
             })
             }
             // fixme i can do better

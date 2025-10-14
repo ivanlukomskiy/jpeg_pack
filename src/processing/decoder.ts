@@ -127,7 +127,7 @@ export class DecoderImpl implements Decoder {
 
         tmp = this.channels.get(2);
         downsampled = this.downsampleBy2(tmp)
-        this.channels.set(1, downsampled)
+        this.channels.set(2, downsampled)
         tmp.delete()
     }
 
@@ -163,13 +163,13 @@ export class DecoderImpl implements Decoder {
                 const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
                 conf.forEach((c: DctCoefConf) => {
                     const max = (1 << c.bitsCapacity) - 1;
-                    const dctCoef = ch.floatPtr(c.y / downsampling + y, c.x / downsampling + x)[0];
+                    const dctCoef = ch.floatPtr(c.y + y / downsampling, c.x + x / downsampling)[0];
                     const value = Math.round(dctCoef * max);
                     for (let i = c.bitsCapacity - 1; i >= 0; i--) {
                         const bitValue = (value >> i) & 1;
                         this.res?.addBit(bitValue);
                     }
-                    console.log("value", c.x, c.y, chIdx, 'rec', value, 'frac', value / max, 'unr', dctCoef * max)
+                    console.log("value (", c.x, c.y, chIdx, ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
                 })
             }
             // fixme i can do better
