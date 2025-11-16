@@ -36,7 +36,12 @@ export function getApproxEffectiveCapacityBytes(fullSizeBytes: number): number {
     return Math.floor(afterErrorCorrection - 8 - 1 - 20 - 4);
 }
 
-export async function decodeFile(raw: Uint8Array) {
+interface DecodeFileResult {
+    filename: string;
+    data: Uint8Array;
+}
+
+export async function decodeFile(raw: Uint8Array): Promise<DecodeFileResult> {
     const decoded = decodeErrorCorrection(raw);
     // console.log('decoded', decoded);
 
@@ -74,5 +79,5 @@ export async function decodeFile(raw: Uint8Array) {
     const textDec = new TextDecoder();
     const filename = textDec.decode(filenameArr)
 
-    return [filename, data]
+    return {filename, data}
 }

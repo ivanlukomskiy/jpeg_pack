@@ -136,7 +136,7 @@ export class EncoderImpl implements Encoder {
             const max = (1 << next.bitsCapacity) - 1;
             const val = byte / max;
             ch.floatPtr(next.y, next.x)[0] = val;
-            console.log('stored (', next.x, next.y, next.chIdx, ') orig', byte, 'frac', val)
+            // console.log('stored (', next.x, next.y, next.chIdx, ') orig', byte, 'frac', val)
             next = iter.next()
         }
         console.log('populate complete')

@@ -1,8 +1,7 @@
-import type {DctCoefConf, EncodingConf} from "./config";
+import type {EncodingConf} from "./config";
 import {DctCalc} from "./dct";
 import {Uint8ArrayBuilder} from "./uint_array_builder";
 import {DctCoefIterator} from "./blocks_iterator.ts";
-import {printMat} from "./utils.ts";
 
 export interface Decoder {
     decode: (mat) => any;
@@ -113,9 +112,6 @@ export class DecoderImpl implements Decoder {
             }
         }
         return dst;
-        // const tmp = new this.cv.Mat();
-        // this.cv.resize(src, tmp, new this.cv.Size(src.cols / 2, src.rows / 2), 0, 0, this.cv.INTER_NEAREST);
-        // return tmp;
     }
 
     private splitToChannels() {
@@ -167,8 +163,6 @@ export class DecoderImpl implements Decoder {
                 const bitValue = (value >> i) & 1;
                 this.res?.addBit(bitValue);
             }
-            // console.log("value (", next.x, next.y, next.chIdx,
-            //     ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
             next = iter.next()
         }
     }

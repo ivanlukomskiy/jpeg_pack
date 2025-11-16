@@ -7,7 +7,7 @@ declare global {
   }
 }
 
-async function getOpenCv() {
+export async function getOpenCv() {
     let cv;
     if (cvModule instanceof Promise) {
         cv = await cvModule;

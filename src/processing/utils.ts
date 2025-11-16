@@ -179,3 +179,88 @@ export function printMat(mat: any): string {
 
     return result;
 }
+
+
+export function fileToUint8Array(file: File): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event: any) => {
+            const arrayBuffer = event.target.result;
+            const uint8Array = new Uint8Array(arrayBuffer);
+            resolve(uint8Array);
+        };
+
+        reader.onerror = (error) => {
+            reject(error);
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+export function generateTimestampedId() {
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD"
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 8; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `${dateStr}-${randomStr}`;
+}
+
+export async function decodeJpeg(cv, jpegBytes: Uint8Array) {
+    const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const decCanvas = document.createElement('canvas');
+    decCanvas.width = img.naturalWidth;
+    decCanvas.height = img.naturalHeight;
+    const dctx = decCanvas.getContext('2d');
+    dctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
+    const rgbaDec = cv.matFromImageData(imageData);
+    const bgr8Decoded = new cv.Mat();
+    cv.cvtColor(rgbaDec, bgr8Decoded, cv.COLOR_RGBA2BGR);
+    rgbaDec.delete();
+    const bgr32fDecoded = new cv.Mat();
+    bgr8Decoded.convertTo(bgr32fDecoded, cv.CV_32F, 1.0 / 255.0);
+    bgr8Decoded.delete();
+    return { bgr32fDecoded: bgr32fDecoded, blob };
+}
+
+export function downloadFile(filename: string, data: Uint8Array) {
+    const blob = new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+export function serializeMat(mat: any) {
+    const data = mat.data.slice().buffer
+
+    const matData = {
+        data,
+        rows: mat.rows,
+        cols: mat.cols,
+        type: mat.type(),
+    }
+
+    mat.delete()
+    return matData
+}
+
+export function deserializeMat(matData: any, cv: any) {
+    const mat = new cv.Mat(matData.rows, matData.cols, matData.type)
+    const src = new (mat.data.constructor as any)(matData.data)
+    mat.data.set(src)
+    return mat
+}
