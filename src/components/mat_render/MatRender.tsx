@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import {useEffect, useRef} from "react";
 
 
 function displayImage(mat: any, canvas: HTMLCanvasElement) {
@@ -58,39 +58,6 @@ function displayImage(mat: any, canvas: HTMLCanvasElement) {
     ctx.drawImage(tempCanvas, 0, 0, mat.cols, mat.rows, 0, 0, canvas.width, canvas.height);
 }
 
-
-export function downloadMatAsJpeg(mat, filename = 'image.jpg', quality=0.9) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    canvas.width = mat.cols;
-    canvas.height = mat.rows;
-    const imageData = ctx.createImageData(mat.cols, mat.rows);
-    const data = imageData.data;
-    const matData = mat.data32F; // <-- use float data
-
-    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-        // Scale [0,1] float to [0,255] for display
-        const b = Math.min(255, Math.max(0, matData[j] * 255));
-        const g = Math.min(255, Math.max(0, matData[j + 1] * 255));
-        const r = Math.min(255, Math.max(0, matData[j + 2] * 255));
-
-        data[i]     = r;   // R (BGR -> RGB)
-        data[i + 1] = g;   // G
-        data[i + 2] = b;   // B
-        data[i + 3] = 255; // A
-    }
-    ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
 interface Props {
     mat: any;
     size?: number;
@@ -99,11 +66,6 @@ interface Props {
 export function MatRender({mat, size=240}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const download = useCallback(() => {
-      if (!mat) return;
-      downloadMatAsJpeg(mat);
-    }, [mat])
-
     useEffect(() => {
         if (!mat || !canvasRef.current) return;
         displayImage(mat, canvasRef.current)
@@ -111,7 +73,7 @@ export function MatRender({mat, size=240}: Props) {
   
     return (
         <div style={{width: '100%'}}>
-            <canvas ref={canvasRef} width={size} height={size} onClick={download} style={{cursor: mat ? 'pointer' : undefined }}></canvas>
+            <canvas ref={canvasRef} width={size} height={size} style={{cursor: mat ? 'pointer' : undefined }}></canvas>
         </div>
     )
 }

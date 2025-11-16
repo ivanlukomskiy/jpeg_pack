@@ -82,13 +82,13 @@ export class EncoderImpl implements Encoder {
         if (debug) this.dataMatrix = this.snapshot();
         progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.COMPLETED);
 
-        progress?.(EncodingStep.INVERSE_DCT, StepStatusCode.IN_PROGRESS);
+        progress?.(EncodingStep.DCT, StepStatusCode.IN_PROGRESS);
         const dctCalc = new DctCalc(this.cv);
         dctCalc.init()
         this.applyDct(dctCalc);
         dctCalc.cleanup();
         if (debug) this.ycrcb = this.snapshot();
-        progress?.(EncodingStep.INVERSE_DCT, StepStatusCode.COMPLETED);
+        progress?.(EncodingStep.DCT, StepStatusCode.COMPLETED);
 
         progress?.(EncodingStep.NORMALIZE, StepStatusCode.IN_PROGRESS);
         this.applyTransforms();
@@ -125,6 +125,9 @@ export class EncoderImpl implements Encoder {
             const max = (1 << next.bitsCapacity) - 1;
             ch.floatPtr(next.y, next.x)[0] = byte / max;
             next = iter.next()
+        }
+        if (this.bitsIter.next() !== null) {
+            throw new Error("File is to large");
         }
     }
 

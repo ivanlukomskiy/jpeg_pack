@@ -3,7 +3,7 @@ export const EncodingStep = {
     LOAD_FILE: 2,
     PREPARE_FILE: 3,
     POPULATE_DCT: 4,
-    INVERSE_DCT: 5,
+    DCT: 5,
     NORMALIZE: 6,
     CONVERT_TO_BGR: 7,
     CREATE_IMAGE: 8,
@@ -11,34 +11,32 @@ export const EncodingStep = {
 export const EncodingStepDesc: Record<number, string> = {
     [EncodingStep.LOAD_OPENCV]: "Loading OpenCV",
     [EncodingStep.LOAD_FILE]: "Loading file",
-    [EncodingStep.PREPARE_FILE]: "Encoding file",
+    [EncodingStep.PREPARE_FILE]: "Preparing file",
     [EncodingStep.POPULATE_DCT]: "Populating DCT coefficients",
-    [EncodingStep.INVERSE_DCT]: "Applying inverse DCT",
+    [EncodingStep.DCT]: "Applying DCT",
     [EncodingStep.NORMALIZE]: "Normalizing image",
     [EncodingStep.CONVERT_TO_BGR]: "Converting to BGR color space",
     [EncodingStep.CREATE_IMAGE]: "Creating image",
 }
 
 export const DecodingStep = {
-    NOT_STARTED: 0,
-    LOAD_OPENCV: 1,
-    LOAD_IMAGE: 2,
+    LOAD_IMAGE: 1,
+    LOAD_OPENCV: 2,
     CONVERT_TO_YCRCB: 3,
     EXTRACT_CHANNELS: 4,
-    DCT: 5,
-    EXTRACT_BITS: 6,
-    DONE: 7,
+    DENORMALIZE: 5,
+    INVERSE_DCT: 6,
+    DECODE_FILE: 7,
 }
 
 export const DecodingStepDesc: Record<number, string> = {
-    [DecodingStep.NOT_STARTED]: "Not started",
-    [DecodingStep.LOAD_OPENCV]: "Loading OpenCV",
     [DecodingStep.LOAD_IMAGE]: "Loading image",
+    [DecodingStep.LOAD_OPENCV]: "Loading OpenCV",
     [DecodingStep.CONVERT_TO_YCRCB]: "Converting to YCrCb color space",
     [DecodingStep.EXTRACT_CHANNELS]: "Extracting channels",
-    [DecodingStep.DCT]: "Applying DCT",
-    [DecodingStep.EXTRACT_BITS]: "Extracting bits from DCT coefficients",
-    [DecodingStep.DONE]: "Done",
+    [DecodingStep.DENORMALIZE]: "De-normalizing image",
+    [DecodingStep.INVERSE_DCT]: "Applying inverse DCT",
+    [DecodingStep.DECODE_FILE]: "Decode file data",
 }
 
 export const StepStatusCode = {

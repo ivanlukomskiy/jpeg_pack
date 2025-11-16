@@ -2,9 +2,11 @@ import type {EncodingConf} from "./config";
 import {DctCalc} from "./dct";
 import {Uint8ArrayBuilder} from "./uint_array_builder";
 import {DctCoefIterator} from "./blocks_iterator.ts";
+import {DecodingStep, StepStatusCode} from "./progress.ts";
+import type {bool} from "@techstark/opencv-js";
 
 export interface Decoder {
-    decode: (mat) => any;
+    decode: (mat: any, debug?: boolean, progress?: (step: number, state: number) => void) => any;
 }
 
 export class DecoderImpl implements Decoder {
@@ -27,7 +29,8 @@ export class DecoderImpl implements Decoder {
         this.cv = cv
     }
 
-    decode(bgr32f) {
+    decode(bgr32f: any, debug: boolean=false, progress?: (step: number, state: number) => void) {
+        progress?.(DecodingStep.CONVERT_TO_YCRCB, StepStatusCode.IN_PROGRESS);
         this.bgr32f = bgr32f;
         if (bgr32f.rows % 16 != 0 || bgr32f.cols % 16 != 0) {
             throw new Error(`image dimensions should be multiples of 16; got ${bgr32f.rows}x${bgr32f.cols}`)
@@ -47,26 +50,32 @@ export class DecoderImpl implements Decoder {
         this.ycrcb = new this.cv.Mat();
         this.cv.cvtColor(bgr32f, this.ycrcb, this.cv.COLOR_BGR2YCrCb);
         this.image = this.ycrcb;
+        progress?.(DecodingStep.CONVERT_TO_YCRCB, StepStatusCode.COMPLETED);
 
+        progress?.(DecodingStep.EXTRACT_CHANNELS, StepStatusCode.IN_PROGRESS);
         this.splitToChannels()
+        progress?.(DecodingStep.EXTRACT_CHANNELS, StepStatusCode.COMPLETED);
 
+        progress?.(DecodingStep.DENORMALIZE, StepStatusCode.IN_PROGRESS);
         this.applyTransforms();
+        if (debug) this.transformed = this.snapshot()
+        progress?.(DecodingStep.DENORMALIZE, StepStatusCode.COMPLETED);
 
-        this.transformed = this.snapshot()
 
+        progress?.(DecodingStep.INVERSE_DCT, StepStatusCode.IN_PROGRESS);
         const dctCalc = new DctCalc(this.cv);
         dctCalc.init();
         this.inverseDct(dctCalc);
         dctCalc.cleanup();
-
         this.dataMatrix = this.snapshot()
-
         this.decodeDct();
+        const uintArr = this.res.toUint8Array();
+        progress?.(DecodingStep.INVERSE_DCT, StepStatusCode.COMPLETED);
 
-        return this.res.toUint8Array();
+        return uintArr
     }
 
-    private upscale(mat) {
+    private upscale(mat: any) {
         const dst = new this.cv.Mat(this.height, this.width, this.cv.CV_32FC1, new this.cv.Scalar(0));
         // fixme slow
         for (let y = 0; y < this.height; y++) {

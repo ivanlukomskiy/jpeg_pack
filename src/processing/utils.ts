@@ -1,3 +1,8 @@
+export interface FileResult {
+    filename: string;
+    data: Uint8Array;
+}
+
 export function splitUint8Array(data: Uint8Array, segmentLength: number) {
      const segments = [];
     const totalSegments = Math.ceil(data.length / segmentLength);
@@ -264,3 +269,44 @@ export function deserializeMat(matData: any, cv: any) {
     mat.data.set(src)
     return mat
 }
+
+export async function matToJpegFileResult(
+    mat: any,
+    filename = "image.jpg",
+    quality = 0.9
+): Promise<FileResult> {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not create 2D context");
+
+    canvas.width = mat.cols;
+    canvas.height = mat.rows;
+
+    const imageData = ctx.createImageData(mat.cols, mat.rows);
+    const data = imageData.data;
+    const matData = mat.data32F;
+
+    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+        const b = Math.min(255, Math.max(0, matData[j] * 255));
+        const g = Math.min(255, Math.max(0, matData[j + 1] * 255));
+        const r = Math.min(255, Math.max(0, matData[j + 2] * 255));
+
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+        data[i + 3] = 255;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    const blob: Blob = await new Promise(resolve =>
+        canvas.toBlob(resolve, "image/jpeg", quality)
+    );
+    if (!blob) throw new Error("Failed to encode JPEG");
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+
+    return { filename, data: uint8 };
+}
+

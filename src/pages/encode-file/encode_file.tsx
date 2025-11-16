@@ -1,7 +1,6 @@
 import {Button, FileButton, Flex, Loader, NumberInput, Text, Title} from "@mantine/core";
-import {downloadMatAsJpeg, MatRender} from "../../components/mat_render/MatRender";
 import {DefaultEncodingConf} from "../../processing/config";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useMemo, useState} from "react";
 import {useOpenCV} from "../../hooks/opencv";
 import {getApproxEffectiveCapacityBytes} from "../../models/protocol";
 import {
@@ -10,7 +9,7 @@ import {
     downloadFile,
     fileToUint8Array,
     generateTimestampedId,
-    getJpegSubsampling,
+    getJpegSubsampling, matToJpegFileResult,
     serializeMat
 } from "../../processing/utils.ts";
 import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
@@ -18,7 +17,10 @@ import EncWorker from '../../workers/worker_encoder.ts?worker';
 import DecWorker from '../../workers/worker_decoder.ts?worker';
 import {
     createDecodingProgressTracker,
-    createEncodingProgressTracker, DecodingStep, DecodingStepDesc, EncodingStep,
+    createEncodingProgressTracker,
+    DecodingStep,
+    DecodingStepDesc,
+    EncodingStep,
     EncodingStepDesc,
     type StepStatus,
     StepStatusCode
@@ -53,13 +55,23 @@ const stepTextColorMap = {
     [StepStatusCode.PENDING]: 'gray',
 }
 
+function validateDimension(value: number) {
+    if (value <= 0) return 'Must be a positive integer';
+    if (value % 16 != 0) return 'Must be a multiple of 16';
+    return null;
+}
+
 export function EncodeFile() {
     const [encFile, setEncFile] = useState<File | null>(null);
     const [decFile, setDecFile] = useState<File | null>(null);
     const cvLib = useOpenCV();
-    const [w, setW] = useState(1024);
-    const [h, setH] = useState(1024);
+    const [w, setW] = useState(32);
+    const [h, setH] = useState(32);
+    // const [w, setW] = useState(1024);
+    // const [h, setH] = useState(1024);
     const [progress, setProgress] = useState<Record<string, StepStatus> | null>();
+    const [resultFile, setResultFile] = useState<Uint8Array | null>(null);
+    const [resultFileName, setResultFileName] = useState<string | null>(null);
 
     const dctStats = useMemo(() => {
         return buildDctConfStats(DefaultEncodingConf);
@@ -86,7 +98,7 @@ export function EncodeFile() {
             }
         })
         let lastProgress: Record<number, StepStatus> = {};
-        worker.onmessage = (e: MessageEvent) => {
+        worker.onmessage = async (e: MessageEvent) => {
             const {type, data} = e.data;
             if (type === 'progress') {
                 const progress = data as Record<number, StepStatus>;
@@ -98,7 +110,10 @@ export function EncodeFile() {
                 updateProgress(tracker.serialize(), EncodingStepDesc);
                 try {
                     const bgr32f = deserializeMat(data, cvLib.cv);
-                    downloadMatAsJpeg(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+                    const fileRes = await matToJpegFileResult(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+                    downloadFile(fileRes.filename, fileRes.data)
+                    setResultFile(fileRes.data);
+                    setResultFileName(fileRes.filename);
                     tracker.markCurrentStepCompleted();
                     updateProgress(tracker.serialize(), EncodingStepDesc);
                 } catch (e) {
@@ -140,26 +155,36 @@ export function EncodeFile() {
         }
 
         const worker = new DecWorker();
+        let lastProgress: Record<number, StepStatus> = {};
         worker.postMessage({
             type: 'start',
             data: {
-                bgrf32: serialized
+                bgrf32: serialized,
+                trackerState: tracker.serialize(),
             }
         })
         worker.onmessage = (e: MessageEvent) => {
             const {type, data} = e.data;
             if (type === 'progress') {
-                console.log('progress', data);
+                const progress = data as Record<number, StepStatus>;
+                lastProgress = progress;
+                updateProgress(progress, DecodingStepDesc)
             } else if (type === 'result') {
                 console.log(data.filename)
+                tracker = createDecodingProgressTracker(lastProgress);
+                updateProgress(tracker.serialize(), DecodingStepDesc);
                 downloadFile(data.filename, data.data)
+                setResultFile(data.data);
+                setResultFileName(data.filename);
+                tracker.markCurrentStepCompleted();
+                updateProgress(tracker.serialize(), DecodingStepDesc);
                 worker.terminate();
             } else if (type === 'error') {
                 console.error('error from worker', data);
                 worker.terminate();
             }
         }
-      }, [cvLib, decFile])
+      }, [cvLib.cv, decFile, updateProgress])
 
     const onSetW = useCallback((e) => {
         setW(e);
@@ -195,13 +220,19 @@ export function EncodeFile() {
         )
     }, [approxEffectiveCapacityBytes, capacityBytes, dctStats.blockSizeBits, detailsLine]);
 
+    const download = useCallback(() => {
+        if (!resultFile || !resultFileName) return;
+        downloadFile(resultFileName, resultFile)
+    }, [resultFile, resultFileName])
+
     const progressTable = useMemo(() => {
         if (!progress) return null;
         return (
-            <Flex direction={'column'}>
+            <Flex direction={'column'} gap={'lg'}>
+                <Flex direction={'column'}>
                 {Object.keys(progress).map((key) => {
                     const step = progress[key];
-                    return (<Flex direction={'row'} key={key} style={{width: '250px'}} gap={'xs'} justify={'space-between'}>
+                    return (<Flex direction={'row'} key={key} style={{width: '350px'}} gap={'xs'} justify={'space-between'}>
                         <Flex direction={'row'} gap={'xs'} style={{flexShrink: 1}}>
                             {getStepIcon(step.code)}
                             <Flex direction={'column'} style={{textAlign: 'left', flexShrink: 1}}>
@@ -214,22 +245,27 @@ export function EncodeFile() {
                         </Text>
                     </Flex>)
                 })}
+                </Flex>
+                <Flex direction={'column'} gap={'sm'}>
+                {resultFileName}
+                {resultFile && <Button onClick={download}>Download</Button>}
+                </Flex>
             </Flex>
         )
-    }, [progress])
+    }, [download, progress, resultFile, resultFileName])
     
       return (
         <Flex direction={'row'} gap={'xl'} justify={'center'}>
           {!progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Encode</Title>
-            <NumberInput label={'width'} hideControls min={8} max={1080} value={w} onChange={onSetW} />
-            <NumberInput label={'height'} hideControls min={8} max={1080} value={h} onChange={onSetH} />
+            <NumberInput label={'width'} hideControls min={16} max={1080} value={w} onChange={onSetW} error={validateDimension(w)} />
+            <NumberInput label={'height'} hideControls min={16} max={1080} value={h} onChange={onSetH} error={validateDimension(h)} />
               {details}
             {encFile?.name}
             <FileButton onChange={setEncFile} >
             {(props) => <Button {...props}>Choose file</Button>}
             </FileButton>
-            <Button onClick={encode} disabled={!encFile}>
+            <Button onClick={encode} disabled={!encFile || validateDimension(w) != null || validateDimension(h) != null || approxEffectiveCapacityBytes <= 0}>
               Encode
             </Button>
           </Flex>}

@@ -38,9 +38,9 @@ self.onmessage = async function(event) {
             reportStarted(EncodingStep.PREPARE_FILE, tracker);
             const encodedFileData = await encodeFile(encFile.name, fileRawData)
             const iterator = BitsIteratorImpl.fromBytes(encodedFileData)
-            reportDone(tracker);
 
             const encoder =  new EncoderImpl(cv, w, h, iterator, DefaultEncodingConf)
+            reportDone(tracker);
 
             const bgr32f = await encoder.encode(false, (step: number, state: number) => {
                 if (state === StepStatusCode.IN_PROGRESS) {
@@ -58,10 +58,6 @@ self.onmessage = async function(event) {
 
         } catch (error) {
             reportFailed(error as Error, tracker);
-            // self.postMessage({
-            //     type: 'error',
-            //     data: error
-            // });
         }
     }
 };
