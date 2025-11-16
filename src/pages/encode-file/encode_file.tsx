@@ -279,7 +279,7 @@ export function EncodeFile() {
 
   return (
     <Flex direction={'row'} gap={120} justify={'center'} wrap={'wrap'}>
-      {!progress && (
+      {!progress && !cvLib.isLoading && (
         <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px', flexShrink: 0 }}>
           <Title size={'lg'}>Encode</Title>
           <NumberInput
@@ -317,7 +317,7 @@ export function EncodeFile() {
         </Flex>
       )}
 
-      {!progress && (
+      {!progress && !cvLib.isLoading && (
         <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px', flexShrink: 0  }}>
           <Title size={'lg'}>Decode</Title>
           {decFile?.name}

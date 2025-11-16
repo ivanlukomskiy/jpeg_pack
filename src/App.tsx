@@ -28,7 +28,7 @@ function App() {
             <Link to="/benchmark">benchmark</Link>
             <Link to="/block">single block</Link>
           </Flex>
-          <Text style={{color: "lightgray"}}>{version}</Text>
+          <Text style={{color: "lightgray"}} size={'xs'}>{version}</Text>
         </Flex>
       </AppShell.Header>
       <AppShell.Navbar hiddenFrom="xs" style={{ display: 'flex', flexDirection: 'column', maxWidth: '100%' }}>
