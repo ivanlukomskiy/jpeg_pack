@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1600,
   },
-  base: '/imgen2/',
+  base: '/jpeg_pack/',
   // test: {
   //   globals: true,
   //   environment: 'jsdom',

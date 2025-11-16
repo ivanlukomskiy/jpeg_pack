@@ -22,9 +22,9 @@ function App() {
       <AppShell.Header style={{ border: 0 }}>
         <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
         <Flex direction={'row'} gap={'xl'} style={{ padding: '5px 20px' }}>
-          <a href="/imgen2/">file</a>
-          <a href="/imgen2/benchmark">benchmark</a>
-          <a href="/imgen2/block">single block</a>
+          <a href="/jpeg_pack/">file</a>
+          <a href="/jpeg_pack/benchmark">benchmark</a>
+          <a href="/jpeg_pack/block">single block</a>
         </Flex>
       </AppShell.Header>
       {/* <AppShell.Navbar>
@@ -32,9 +32,9 @@ function App() {
       </AppShell.Navbar> */}
       <AppShell.Main>
         <Routes>
-          <Route path="/imgen2/" element={<EncodeFile />} />
-          <Route path="/imgen2/benchmark" element={<Benchmark />} />
-          <Route path="/imgen2/block" element={<OneBlockTest />} />
+          <Route path="/jpeg_pack/" element={<EncodeFile />} />
+          <Route path="/jpeg_pack/benchmark" element={<Benchmark />} />
+          <Route path="/jpeg_pack/block" element={<OneBlockTest />} />
         </Routes>
       </AppShell.Main>
     </AppShell>

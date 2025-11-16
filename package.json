@@ -1,7 +1,7 @@
 {
-  "name": "imgen2",
+  "name": "jpeg_pack",
   "private": true,
-  "homepage": "https://ivanlukomskiy.github.io/imgen2",
+  "homepage": "https://ivanlukomskiy.github.io/jpeg_pack",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
