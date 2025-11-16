@@ -2,9 +2,8 @@ import { Route, Routes } from 'react-router'
 import './App.css'
 import { OneBlockTest } from './pages/one_block_test/one_block_test'
 import { Benchmark } from './pages/benchmark/benchmark'
-import { AppShell, Burger, Flex, NavLink } from '@mantine/core'
+import { AppShell, Burger, Flex } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { EncodeText } from './pages/encode-text/encode_text'
 import { EncodeFile } from './pages/encode-file/encode_file'
 
 
@@ -30,7 +29,6 @@ function App() {
         />
         <Flex direction={'row'} gap={'xl'} style={{padding: '5px 20px'}}>
           <a href="/imgen2/">file</a>
-          <a href="/imgen2/text">text</a>
           <a href="/imgen2/benchmark">benchmark</a>
           <a href="/imgen2/block">single block</a>
         </Flex>
@@ -41,7 +39,6 @@ function App() {
       <AppShell.Main>
         <Routes>
         <Route path="/imgen2/" element={<EncodeFile />} />
-        <Route path="/imgen2/text" element={<EncodeText />} />
         <Route path="/imgen2/benchmark" element={<Benchmark />} />
         <Route path="/imgen2/block" element={<OneBlockTest />} />
       </Routes>

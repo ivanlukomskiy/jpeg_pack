@@ -1,6 +1,6 @@
-import type { BitsIterator } from "./bits_iter";
-import type { DctCoefConf, EncodingConf } from "./config";
-import { DctCalc } from "./dct";
+import type {BitsIterator} from "./bits_iter";
+import type {EncodingConf} from "./config";
+import {DctCalc} from "./dct";
 import {DctCoefIterator} from "./blocks_iterator.ts";
 
 export interface Encoder {
@@ -20,14 +20,12 @@ export class EncoderImpl implements Encoder {
     public ycrcb: any;
     public transformed: any;
     public bgr32f: any;
-    private prime: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
         if (height % 16 !== 0 || width % 16 != 0) throw new Error("dimensions should be multiples of 16");
 
         this.height = height;
         this.width = width;
-        console.log("cv", cv)
 
         this.channels = new cv.MatVector();
         for (let i = 0; i < 3; i++) {
@@ -35,10 +33,7 @@ export class EncoderImpl implements Encoder {
             const rows = Math.max(1, (height / ds) | 0); // integer, >= 1
             const cols = Math.max(1, (width  / ds) | 0); // integer, >= 1
 
-            console.log('creating mat')
-            // no "new" here; use CV_32FC1 explicitly
             const mat = cv.Mat.zeros(rows, cols, cv.CV_32FC1);
-            console.log('pushing')
             this.channels.push_back(mat);
         }
 
@@ -80,45 +75,33 @@ export class EncoderImpl implements Encoder {
         return dst;
     }
 
-    public encode() {
+    public encode(debug: boolean = false): any {
         this.populateDctMatrix();
-        this.dataMatrix = this.snapshot();
-        console.log('data matrix shapshot ok')
-
+        if (debug) this.dataMatrix = this.snapshot();
         const dctCalc = new DctCalc(this.cv);
-        console.log('dct constructor ok')
-        dctCalc.init()
-        console.log('applying dct')
-        this.applyDct(dctCalc);
-        console.log('dct apply ok')
-        dctCalc.cleanup();
-        console.log('dct cleanup ok')
-        this.ycrcb = this.snapshot();
-        console.log('ycrcb snapshot ok')
 
+        dctCalc.init()
+        this.applyDct(dctCalc);
+        dctCalc.cleanup();
+
+        if (debug) this.ycrcb = this.snapshot();
 
         this.applyTransforms();
-        console.log('transforms ok')
 
-        this.transformed = this.snapshot();
-        console.log('transforms snapshot ok')
+        const transformed = this.snapshot();
+        if (debug) this.transformed = transformed;
 
         this.bgr32f = new this.cv.Mat();
-        console.log('1')
-        this.cv.cvtColor(this.transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
-        console.log('2')
+        this.cv.cvtColor(transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
         const min = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]);
         this.cv.min(this.bgr32f, min, this.bgr32f);
         min.delete();
-        console.log('3')
         const max = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]);
         this.cv.max(this.bgr32f, max, this.bgr32f);
         max.delete();
 
         console.log('encode complete')
 
-        // this.transformed.delete();
-        // this.bgr32f.delete();
         this.channels.get(0).delete();
         this.channels.get(1).delete();
         this.channels.get(2).delete();
@@ -134,12 +117,9 @@ export class EncoderImpl implements Encoder {
             const ch = this.channels.get(next.chIdx);
             const byte = this.bitsIter.nextN(next.bitsCapacity) ?? 0;
             const max = (1 << next.bitsCapacity) - 1;
-            const val = byte / max;
-            ch.floatPtr(next.y, next.x)[0] = val;
-            // console.log('stored (', next.x, next.y, next.chIdx, ') orig', byte, 'frac', val)
+            ch.floatPtr(next.y, next.x)[0] = byte / max;
             next = iter.next()
         }
-        console.log('populate complete')
     }
 
     private applyTransforms() {
@@ -152,7 +132,6 @@ export class EncoderImpl implements Encoder {
     }
 
     private applyDct(dct: DctCalc) {
-        // const newChannels = new this.cv.MatVector();
         for (let chIdx = 0; chIdx < 3; chIdx++) {
             const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
             const ch = this.channels.get(chIdx);
