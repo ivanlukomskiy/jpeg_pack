@@ -52,14 +52,6 @@ export function Benchmark() {
 
   const benchmark = useCallback(async () => {
     try {
-      // let size = 0;
-      // DefaultEncodingConf.chromaConf.forEach(c => {
-      //   size += c.bitsCapacity * 2 / 4;
-      // })
-      // DefaultEncodingConf.lumaConf.forEach(c => {
-      //   size += c.bitsCapacity;
-      // })
-      // size *= blocksPerAxis * blocksPerAxis;
       const stats = buildDctConfStats(DefaultEncodingConf);
       const size = stats.blockSizeBits * blocksPerAxis * blocksPerAxis;
       const ycrcbStats: Record<string, ChannelStats> = {};
@@ -81,7 +73,7 @@ export function Benchmark() {
         const { bgr32fDecoded } = await jpegRoundTripBgr32f(cvLib.cv, res, jpegQuality);
 
         const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf);
-        const decoded = decoder.decode(bgr32fDecoded);
+        const decoded = decoder.decode(bgr32fDecoded, true);
         setRes(res);
         console.log('original', original);
         console.log('decoded', decoded);
@@ -132,16 +124,16 @@ export function Benchmark() {
     return res;
   }, [byteErrRates]);
 
-  const onIterationsChanged = useCallback(e => {
-    setIterations(e);
+  const onIterationsChanged = useCallback((e: number | string) => {
+    setIterations(e as number);
   }, []);
 
-  const onJpegQualityChanged = useCallback(e => {
-    setJpegQuality(e);
+  const onJpegQualityChanged = useCallback((e: number | string) => {
+    setJpegQuality(e as number);
   }, []);
 
-  const onBlockPerAxisChanged = useCallback(e => {
-    setBlocksPerAxis(e);
+  const onBlockPerAxisChanged = useCallback((e: number | string) => {
+    setBlocksPerAxis(e as number);
   }, []);
 
   return (

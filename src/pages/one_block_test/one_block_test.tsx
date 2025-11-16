@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { type ChangeEvent, useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
 import { BitsIteratorImpl } from '../../processing/bits_iter';
 import { DecoderImpl } from '../../processing/decoder';
@@ -18,7 +18,7 @@ const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BYTES];
 
 const rand = () => Math.floor(Math.random() * 256);
 
-function randomBytesString(n) {
+function randomBytesString(n: number) {
   return Array.from({ length: n }, rand).join(', ');
 }
 
@@ -86,7 +86,7 @@ export function OneBlockTest() {
           iter = BitsIteratorImpl.random(randInputSize);
         }
         const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf);
-        const bgr32f = encoder.encode();
+        const bgr32f = encoder.encode(true);
         setRes(bgr32f);
         const ycrcbStats: Record<string, ChannelStats> = {};
         const rgbStats: Record<string, ChannelStats> = {};
@@ -120,7 +120,7 @@ export function OneBlockTest() {
         source = reencoded.bgr32fDecoded;
       }
       const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf);
-      const bytes = decoder.decode(source);
+      const bytes = decoder.decode(source, true);
       setMat({
         dataMatrix: decoder.dataMatrix,
         transformed: decoder.transformed,
@@ -133,16 +133,16 @@ export function OneBlockTest() {
     [cvLib.cv, reencode],
   );
 
-  const onRandInputSizeChanged = useCallback(e => {
-    setRandInputSize(e);
+  const onRandInputSizeChanged = useCallback((e: number | string) => {
+    setRandInputSize(e as number);
   }, []);
 
-  const onSetInpText = useCallback(e => {
+  const onSetInpText = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     console.log(e.target.value);
     setInpText(e.target.value);
   }, []);
 
-  const onSetInpBytes = useCallback(e => {
+  const onSetInpBytes = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     console.log(e.target.value);
     setInpBytes(e.target.value);
   }, []);
