@@ -58,7 +58,8 @@ export function OneBlockTest() {
   const [inpType, setInpType] = useState(INP_TYPE_BYTES);
   const [inpText, setInpText] = useState('adcd');
   const [inpBytes, setInpBytes] = useState(
-    '106, 204, 163, 109, 222, 98, 32, 61, 177, 227, 204, 15, 158, 89, 162, 19, 15, 41',
+    '53, 33, 117, 186, 5, 255, 101, 229, 244, 225, 76, 170, 242, 67, 183, 239, 238, ' +
+    '82, 39, 159, 37, 112, 28, 101, 161, 159, 30, 202, 249, 76, 144, 220, 217, 248, 0',
   );
   const [reencode, setReencode] = useState(false);
   const [decoded, setDecoded] = useState('');

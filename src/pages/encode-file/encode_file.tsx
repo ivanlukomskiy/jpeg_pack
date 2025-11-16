@@ -232,6 +232,15 @@ export function EncodeFile() {
     downloadFile(resultFileName, resultFile);
   }, [resultFile, resultFileName]);
 
+  const reset = useCallback(() => {
+    if (!resultFile || !resultFileName) return;
+    setResultFile(null);
+    setResultFileName(null);
+    setProgress(null);
+    setEncFile(null);
+    setDecFile(null);
+  }, [resultFile, resultFileName]);
+
   const progressTable = useMemo(() => {
     if (!progress) return null;
     return (
@@ -262,15 +271,16 @@ export function EncodeFile() {
         <Flex direction={'column'} gap={'sm'}>
           {resultFileName}
           {resultFile && <Button onClick={download}>Download</Button>}
+          {resultFile && <Button onClick={reset}>Reset</Button>}
         </Flex>
       </Flex>
     );
   }, [download, progress, resultFile, resultFileName]);
 
   return (
-    <Flex direction={'row'} gap={'xl'} justify={'center'}>
+    <Flex direction={'row'} gap={120} justify={'center'} wrap={'wrap'}>
       {!progress && (
-        <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px' }}>
+        <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px', flexShrink: 0 }}>
           <Title size={'lg'}>Encode</Title>
           <NumberInput
             label={'width'}
@@ -306,20 +316,9 @@ export function EncodeFile() {
           </Button>
         </Flex>
       )}
-      {
-        <Flex
-          direction={'column'}
-          gap={'sm'}
-          style={{
-            paddingTop: '55px',
-            alignItems: 'flex-start',
-            marginRight: '60px',
-          }}
-        ></Flex>
-      }
 
       {!progress && (
-        <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px' }}>
+        <Flex direction={'column'} gap={'sm'} style={{ alignItems: 'left', width: '200px', flexShrink: 0  }}>
           <Title size={'lg'}>Decode</Title>
           {decFile?.name}
           <FileButton onChange={setDecFile} accept="image/png,image/jpeg">

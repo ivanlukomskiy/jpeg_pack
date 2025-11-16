@@ -1,4 +1,4 @@
-import { HashRouter, Route, Routes, Link } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import './App.css';
 import { OneBlockTest } from './pages/one_block_test/one_block_test';
 import { Benchmark } from './pages/benchmark/benchmark';
@@ -19,17 +19,19 @@ function App() {
         collapsed: { mobile: !opened },
       }}
     >
-      <AppShell.Header style={{ border: 0 }}>
-        <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-        <Flex direction={'row'} gap={'xl'} style={{ padding: '5px 20px' }}>
+      <AppShell.Header style={{ border: 0, display: 'flex', alignItems: 'left' }}>
+        <Burger opened={opened} onClick={toggle} hiddenFrom="xs" size="md" />
+        <Flex direction={'row'} gap={'xl'} style={{ padding: '5px 20px' }} visibleFrom={'xs'}>
           <Link to="/">file</Link>
           <Link to="/benchmark">benchmark</Link>
           <Link to="/block">single block</Link>
         </Flex>
       </AppShell.Header>
-      {/* <AppShell.Navbar>
-
-      </AppShell.Navbar> */}
+      <AppShell.Navbar  hiddenFrom="xs" style={{display: 'flex', flexDirection: 'column'}}>
+        <Link to="/" style={{padding: 20}} onClick={toggle}>file</Link>
+        <Link to="/benchmark" style={{padding: 20}} onClick={toggle}>benchmark</Link>
+        <Link to="/block" style={{padding: 20}} onClick={toggle}>single block</Link>
+      </AppShell.Navbar>
       <AppShell.Main>
         <Routes>
           <Route path="/" element={<EncodeFile />} />
