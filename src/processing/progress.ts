@@ -59,10 +59,14 @@ export class ProgressTracker {
     private status: Map<number, StepStatus>
     private readonly describe: (step: number) => string
 
-    constructor(steps: readonly number[], describe: (step: number) => string) {
+    constructor(steps: readonly number[], describe: (step: number) => string, status?: Map<number, StepStatus>) {
         this.status = new Map()
         this.describe = describe
 
+        if (status) {
+            this.status = status
+            return
+        }
         for (const step of steps) {
             this.status.set(step, { code: StepStatusCode.PENDING } )
         }
@@ -108,12 +112,14 @@ export class ProgressTracker {
     }
 }
 
-export function createEncodingProgressTracker() {
+export function createEncodingProgressTracker(progress?: Record<number, StepStatus>) {
     const steps = Object.values(EncodingStep) as number[]
-    return new ProgressTracker(steps, (step) => EncodingStepDesc[step])
+    const progressMap = progress ? new Map<number, StepStatus>(Object.entries(progress).map(([k, v]) => [parseInt(k), v])) : undefined
+    return new ProgressTracker(steps, (step) => EncodingStepDesc[step], progressMap)
 }
 
-export function createDecodingProgressTracker() {
+export function createDecodingProgressTracker(progress?: Record<number, StepStatus>) {
     const steps = Object.values(DecodingStep) as number[]
-    return new ProgressTracker(steps, (step) => DecodingStepDesc[step])
+    const progressMap = progress ? new Map<number, StepStatus>(Object.entries(progress).map(([k, v]) => [parseInt(k), v])) : undefined
+    return new ProgressTracker(steps, (step) => DecodingStepDesc[step], progressMap)
 }

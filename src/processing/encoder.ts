@@ -2,9 +2,10 @@ import type {BitsIterator} from "./bits_iter";
 import type {EncodingConf} from "./config";
 import {DctCalc} from "./dct";
 import {DctCoefIterator} from "./blocks_iterator.ts";
+import {EncodingStep, StepStatusCode} from "./progress.ts";
 
 export interface Encoder {
-    encode: () => any;
+    encode: (debug?: boolean, progress?: (step: number, state: number) => void) => any;
 }
 
 export class EncoderImpl implements Encoder {
@@ -75,22 +76,28 @@ export class EncoderImpl implements Encoder {
         return dst;
     }
 
-    public encode(debug: boolean = false): any {
+    public encode(debug: boolean = false, progress?: (step: number, state: number) => void): any {
+        progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.IN_PROGRESS);
         this.populateDctMatrix();
         if (debug) this.dataMatrix = this.snapshot();
-        const dctCalc = new DctCalc(this.cv);
+        progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.COMPLETED);
 
+        progress?.(EncodingStep.INVERSE_DCT, StepStatusCode.IN_PROGRESS);
+        const dctCalc = new DctCalc(this.cv);
         dctCalc.init()
         this.applyDct(dctCalc);
         dctCalc.cleanup();
-
         if (debug) this.ycrcb = this.snapshot();
+        progress?.(EncodingStep.INVERSE_DCT, StepStatusCode.COMPLETED);
 
+        progress?.(EncodingStep.NORMALIZE, StepStatusCode.IN_PROGRESS);
         this.applyTransforms();
-
         const transformed = this.snapshot();
         if (debug) this.transformed = transformed;
+        progress?.(EncodingStep.NORMALIZE, StepStatusCode.COMPLETED);
 
+
+        progress?.(EncodingStep.CONVERT_TO_BGR, StepStatusCode.IN_PROGRESS);
         this.bgr32f = new this.cv.Mat();
         this.cv.cvtColor(transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
         const min = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]);
@@ -99,13 +106,12 @@ export class EncoderImpl implements Encoder {
         const max = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]);
         this.cv.max(this.bgr32f, max, this.bgr32f);
         max.delete();
-
-        console.log('encode complete')
-
         this.channels.get(0).delete();
         this.channels.get(1).delete();
         this.channels.get(2).delete();
         this.channels.delete();
+        progress?.(EncodingStep.CONVERT_TO_BGR, StepStatusCode.COMPLETED);
+        console.log('encode complete')
 
         return this.bgr32f;
     }

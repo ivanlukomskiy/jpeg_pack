@@ -16,7 +16,13 @@ import {
 import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
 import EncWorker from '../../workers/worker_encoder.ts?worker';
 import DecWorker from '../../workers/worker_decoder.ts?worker';
-import {EncodingStepDesc, type StepStatus, StepStatusCode} from "../../processing/progress.ts";
+import {
+    createDecodingProgressTracker,
+    createEncodingProgressTracker, DecodingStep, DecodingStepDesc, EncodingStep,
+    EncodingStepDesc,
+    type StepStatus,
+    StepStatusCode
+} from "../../processing/progress.ts";
 
 function getStepIcon(status: number) {
     let icon = null;
@@ -50,7 +56,6 @@ const stepTextColorMap = {
 export function EncodeFile() {
     const [encFile, setEncFile] = useState<File | null>(null);
     const [decFile, setDecFile] = useState<File | null>(null);
-    const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
     const [w, setW] = useState(1024);
     const [h, setH] = useState(1024);
@@ -80,17 +85,26 @@ export function EncodeFile() {
                 encFile
             }
         })
+        let lastProgress: Record<number, StepStatus> = {};
         worker.onmessage = (e: MessageEvent) => {
-            console.log("got message from worker", e.data)
             const {type, data} = e.data;
             if (type === 'progress') {
                 const progress = data as Record<number, StepStatus>;
+                lastProgress = progress;
                 updateProgress(progress, EncodingStepDesc)
             } else if (type === 'result') {
-                console.log('result received', data);
-                const bgr32f = deserializeMat(data, cvLib.cv);
-                setRes(bgr32f);
-                downloadMatAsJpeg(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+                const tracker = createEncodingProgressTracker(lastProgress);
+                tracker.markInProgress(EncodingStep.CREATE_IMAGE)
+                updateProgress(tracker.serialize(), EncodingStepDesc);
+                try {
+                    const bgr32f = deserializeMat(data, cvLib.cv);
+                    downloadMatAsJpeg(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+                    tracker.markCurrentStepCompleted();
+                    updateProgress(tracker.serialize(), EncodingStepDesc);
+                } catch (e) {
+                    tracker.markCurrentStepFailed((e as Error).message);
+                    updateProgress(tracker.serialize(), EncodingStepDesc);
+                }
                 worker.terminate();
             } else if (type === 'error') {
                 console.error('error from worker', data);
@@ -103,11 +117,28 @@ export function EncodeFile() {
 
     const decode = useCallback(async () => {
         if (!decFile) return;
-        const fileRawData = await fileToUint8Array(decFile);
-        const ss = await getJpegSubsampling(decFile);
-        console.log("subsampling info", ss)
-        const {bgr32fDecoded} = await decodeJpeg(cvLib.cv, fileRawData);
-        const serialized = serializeMat(bgr32fDecoded)
+        let tracker = createDecodingProgressTracker();
+
+        tracker.markInProgress(DecodingStep.LOAD_IMAGE)
+        updateProgress(tracker.serialize(), DecodingStepDesc);
+
+        let bgr32fDecoded: any = null;
+        let serialized: any;
+        try {
+            const fileRawData = await fileToUint8Array(decFile);
+            const ss = await getJpegSubsampling(decFile);
+            console.log("subsampling info", ss)
+            const jpegDecodeResult = await decodeJpeg(cvLib.cv, fileRawData);
+            bgr32fDecoded = jpegDecodeResult.bgr32fDecoded;
+            tracker.markCurrentStepCompleted();
+            updateProgress(tracker.serialize(), DecodingStepDesc);
+            serialized = serializeMat(bgr32fDecoded)
+        } catch (e) {
+            tracker.markCurrentStepFailed((e as Error).message);
+            updateProgress(tracker.serialize(), DecodingStepDesc);
+            return;
+        }
+
         const worker = new DecWorker();
         worker.postMessage({
             type: 'start',
@@ -116,19 +147,12 @@ export function EncodeFile() {
             }
         })
         worker.onmessage = (e: MessageEvent) => {
-            console.log("got message from worker", e.data)
             const {type, data} = e.data;
             if (type === 'progress') {
                 console.log('progress', data);
             } else if (type === 'result') {
-                console.log('result received', data);
-                const bgr32f = deserializeMat(data.bgr32f, cvLib.cv);
-
                 console.log(data.filename)
                 downloadFile(data.filename, data.data)
-
-                setRes(bgr32f);
-
                 worker.terminate();
             } else if (type === 'error') {
                 console.error('error from worker', data);
@@ -193,19 +217,10 @@ export function EncodeFile() {
             </Flex>
         )
     }, [progress])
-
-    useEffect(() => {
-        setProgress({
-           'Completed step': {code: StepStatusCode.COMPLETED, startTime: Date.now(), endTime: Date.now() + 44},
-           'In progress step': {code: StepStatusCode.IN_PROGRESS, startTime: Date.now()},
-            'Failed step': {code: StepStatusCode.FAILED, startTime: Date.now(), endTime: Date.now() + 33, error: 'oh no! there were some nasty errors'},
-           'Pending step': {code: StepStatusCode.PENDING},
-        });
-    }, [])
     
       return (
         <Flex direction={'row'} gap={'xl'} justify={'center'}>
-          {!res && !progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+          {!progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Encode</Title>
             <NumberInput label={'width'} hideControls min={8} max={1080} value={w} onChange={onSetW} />
             <NumberInput label={'height'} hideControls min={8} max={1080} value={h} onChange={onSetH} />
@@ -218,10 +233,10 @@ export function EncodeFile() {
               Encode
             </Button>
           </Flex>}
-          {!res && <Flex direction={'column'} gap={'sm'} style={{paddingTop: '55px', alignItems: 'flex-start', marginRight: '60px'}}>
+          {<Flex direction={'column'} gap={'sm'} style={{paddingTop: '55px', alignItems: 'flex-start', marginRight: '60px'}}>
           </Flex>}
 
-          {!res && !progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+          {!progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Decode</Title>
             {decFile?.name}
             <FileButton onChange={setDecFile} accept="image/png,image/jpeg">
@@ -233,11 +248,6 @@ export function EncodeFile() {
           </Flex>}
 
             {progress && progressTable}
-
-          {res && <Flex direction={'column'} gap={'sm'}>
-            <Title size={'lg'}>Result</Title>
-            <MatRender mat={res} size={512} />
-          </Flex>}
           
         </Flex>
       )

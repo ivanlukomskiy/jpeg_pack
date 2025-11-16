@@ -4,7 +4,7 @@ import {DefaultEncodingConf} from "../processing/config.ts";
 import {BitsIteratorImpl} from "../processing/bits_iter.ts";
 import {encodeFile} from "../models/protocol.ts";
 import {fileToUint8Array, serializeMat} from "../processing/utils.ts";
-import {createEncodingProgressTracker, EncodingStep, ProgressTracker} from "../processing/progress.ts";
+import {createEncodingProgressTracker, EncodingStep, ProgressTracker, StepStatusCode} from "../processing/progress.ts";
 
 function reportStarted(step: number, tracker: ProgressTracker) {
     tracker.markInProgress(step)
@@ -42,7 +42,13 @@ self.onmessage = async function(event) {
 
             const encoder =  new EncoderImpl(cv, w, h, iterator, DefaultEncodingConf)
 
-            const bgr32f = await encoder.encode();
+            const bgr32f = await encoder.encode(false, (step: number, state: number) => {
+                if (state === StepStatusCode.IN_PROGRESS) {
+                    reportStarted(step, tracker);
+                } else if (state === StepStatusCode.COMPLETED) {
+                    reportDone(tracker);
+                }
+            });
             console.log("bgr32f", bgr32f)
             const serialized = serializeMat(bgr32f)
             self.postMessage({
