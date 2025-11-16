@@ -1,5 +1,5 @@
-import {useEffect, useState} from 'react';
-import cvModule from "@techstark/opencv-js";
+import { useEffect, useState } from 'react';
+import cvModule from '@techstark/opencv-js';
 
 declare global {
   interface Window {
@@ -8,16 +8,16 @@ declare global {
 }
 
 export async function getOpenCv() {
-    let cv;
-    if (cvModule instanceof Promise) {
-        cv = await cvModule;
-    } else {
-        await new Promise<void>((resolve) => {
-            cvModule.onRuntimeInitialized = () => resolve();
-        });
-        cv = cvModule;
-    }
-    return { cv };
+  let cv;
+  if (cvModule instanceof Promise) {
+    cv = await cvModule;
+  } else {
+    await new Promise<void>(resolve => {
+      cvModule.onRuntimeInitialized = () => resolve();
+    });
+    cv = cvModule;
+  }
+  return { cv };
 }
 
 export const useOpenCV = () => {
@@ -26,13 +26,15 @@ export const useOpenCV = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-      getOpenCv().then((cv) => {
+    getOpenCv()
+      .then(cv => {
         setCv(cv.cv);
         setIsLoading(false);
-      }).catch((e) => {
+      })
+      .catch(e => {
         setError(e.message);
         setIsLoading(false);
-      })
+      });
   }, []);
 
   return { cv, isLoading, error };

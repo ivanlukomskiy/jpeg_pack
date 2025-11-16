@@ -1,18 +1,17 @@
-import {type DctCoefConf, DefaultEncodingConf} from "./config";
-import type {DctConfStats} from "./blocks_iterator.ts";
+import type { DctConfStats } from './blocks_iterator.ts';
 
 export interface BitsIterator {
   next(): number | null;
-  nextN(n: number): number | null
+  nextN(n: number): number | null;
 }
 
 export function randomUint8Arr(lenBits: number) {
-    if (lenBits % 8 != 0) throw new Error("length should be multiple of 8")
-    const data = new Uint8Array(Math.ceil(lenBits / 8));
-    for (let i = 0; i < data.length; i++) {
-        data[i] = Math.floor(Math.random() * 256);
-    }
-    return data;
+  if (lenBits % 8 != 0) throw new Error('length should be multiple of 8');
+  const data = new Uint8Array(Math.ceil(lenBits / 8));
+  for (let i = 0; i < data.length; i++) {
+    data[i] = Math.floor(Math.random() * 256);
+  }
+  return data;
 }
 
 export class BitsIteratorImpl implements BitsIterator {
@@ -40,8 +39,8 @@ export class BitsIteratorImpl implements BitsIterator {
   static async fromFile(file: File): Promise<BitsIteratorImpl> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
-      reader.onload = (e) => {
+
+      reader.onload = e => {
         try {
           const arrayBuffer = e.target?.result as ArrayBuffer;
           const data = new Uint8Array(arrayBuffer);
@@ -51,7 +50,7 @@ export class BitsIteratorImpl implements BitsIterator {
           reject(error);
         }
       };
-      
+
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsArrayBuffer(file);
     });
@@ -68,13 +67,13 @@ export class BitsIteratorImpl implements BitsIterator {
 
     const byte = this.data[this.currentByte];
     const bitValue = (byte >> (7 - this.currentBit)) & 1;
-    
+
     this.currentBit++;
     if (this.currentBit >= 8) {
       this.currentBit = 0;
       this.currentByte++;
     }
-    
+
     return bitValue;
   }
 
@@ -99,74 +98,74 @@ export class BitsIteratorImpl implements BitsIterator {
 }
 
 export function compareBits(array1: Uint8Array, array2: Uint8Array): number {
-    if (array1.length !== array2.length) {
-        throw new Error('Arrays must be of the same length');
-    }
+  if (array1.length !== array2.length) {
+    throw new Error('Arrays must be of the same length');
+  }
 
-    let differentBits = 0;
+  let differentBits = 0;
 
-    for (let i = 0; i < array1.length; i++) {
-        const xorResult = array1[i] ^ array2[i];
-        differentBits += countBits(xorResult);
-    }
+  for (let i = 0; i < array1.length; i++) {
+    const xorResult = array1[i] ^ array2[i];
+    differentBits += countBits(xorResult);
+  }
 
-    return differentBits;
+  return differentBits;
 }
 
 export function compareBytes(array1: Uint8Array, array2: Uint8Array): number {
-    if (array1.length !== array2.length) {
-        throw new Error('Arrays must be of the same length');
-    }
+  if (array1.length !== array2.length) {
+    throw new Error('Arrays must be of the same length');
+  }
 
-    let differentBytes = 0;
+  let differentBytes = 0;
 
-    for (let i = 0; i < array1.length; i++) {
-        if (array1[i] != array2[i]) differentBytes++;
-    }
+  for (let i = 0; i < array1.length; i++) {
+    if (array1[i] != array2[i]) differentBytes++;
+  }
 
-    return differentBytes;
+  return differentBytes;
 }
 
 export function buildErrSourceAcc(stats: DctConfStats) {
   const res: Record<string, number> = {};
   Object.values(stats.offsetToName).forEach(val => {
     res[val] = 0;
-  })
+  });
   return res;
 }
 
 export function calculateErrorSources(
-    array1: Uint8Array,
-    array2: Uint8Array,
-    acc: Record<string, number>,
-    stats: DctConfStats,
+  array1: Uint8Array,
+  array2: Uint8Array,
+  acc: Record<string, number>,
+  stats: DctConfStats,
 ) {
   if (array1.length !== array2.length) {
     throw new Error('Arrays must be of the same length');
   }
   for (let i = 0; i < array1.length; i++) {
-        const byte1 = array1[i];
-        const byte2 = array2[i];
-        
-        for (let bitPos = 7; bitPos >= 0; bitPos--) {
-            const bit1 = (byte1 >> bitPos) & 1;
-            const bit2 = (byte2 >> bitPos) & 1;
-            if (bit1 !== bit2) {
-              const offset = (i * 8 + (7 - bitPos)) % stats.blockSizeBits;
-              const dctName = stats.offsetToName[offset];
-              acc[dctName]++;
-              // console.log(dctName, '++', acc[dctName], (i * 8 + (7 - bitPos)));
-            }
-        }
+    const byte1 = array1[i];
+    const byte2 = array2[i];
+
+    for (let bitPos = 7; bitPos >= 0; bitPos--) {
+      const bit1 = (byte1 >> bitPos) & 1;
+      const bit2 = (byte2 >> bitPos) & 1;
+      if (bit1 !== bit2) {
+        const offset = (i * 8 + (7 - bitPos)) % stats.blockSizeBits;
+        const dctName = stats.offsetToName[offset];
+        acc[dctName]++;
+        // console.log(dctName, '++', acc[dctName], (i * 8 + (7 - bitPos)));
+      }
     }
+  }
 }
 
 function countBits(byte: number): number {
-    let count = 0;
-    let temp = byte;
-    while (temp > 0) {
-        count += temp & 1;
-        temp >>= 1;
-    }
-    return count;
+  let count = 0;
+  let temp = byte;
+  while (temp > 0) {
+    count += temp & 1;
+    temp >>= 1;
+  }
+  return count;
 }
