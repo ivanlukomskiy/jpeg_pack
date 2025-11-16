@@ -156,3 +156,26 @@ export async function getJpegSubsampling(file) {
 
     throw new Error('No SOF segment found');
 }
+
+export function printMat(mat: any): string {
+    const rows = mat.rows;
+    const cols = mat.cols;
+    const channels = mat.channels();
+    let result = '';
+
+    for (let r = 0; r < rows; r++) {
+      let rowStr = '';
+      for (let c = 0; c < cols; c++) {
+        let pixelStr = '';
+        for (let ch = 0; ch < channels; ch++) {
+          const value = mat.ucharPtr(r, c)[ch];
+          pixelStr += value.toFixed(2);
+          if (ch < channels - 1) pixelStr += ', ';
+        }
+        rowStr += `[${pixelStr}] `;
+      }
+      result += rowStr.trim() + '\n';
+    }
+
+    return result;
+}

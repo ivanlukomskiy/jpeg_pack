@@ -77,8 +77,8 @@ export function OneBlockTest() {
             iter = BitsIteratorImpl.random(randInputSize);
         }
         const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf)
-        const res = encoder.encode();
-        setRes(res);
+        const bgr32f = encoder.encode();
+        setRes(bgr32f);
         const ycrcbStats: Record<string, ChannelStats> = {}
         const rgbStats: Record<string, ChannelStats> = {}
         analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
@@ -92,9 +92,9 @@ export function OneBlockTest() {
             ycrcb: encoder.ycrcb.clone(),
             transformed: encoder.transformed.clone(),
             bgr32f: encoder.bgr32f.clone(),
-            res: res.clone(),
+            res: bgr32f.clone(),
         })
-          return res;
+          return bgr32f;
     } catch (e) {
         console.error(e)
     }

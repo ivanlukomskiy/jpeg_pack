@@ -9,7 +9,7 @@ import { useOpenCV } from "../../hooks/opencv";
 import { sampleText } from "../../processing/sample_text";
 import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
 import { decodeFile, encodeFile, getApproxEffectiveCapacityBytes } from "../../models/protocol";
-import {getJpegSubsampling} from "../../processing/utils.ts";
+import { getJpegSubsampling} from "../../processing/utils.ts";
 import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
 
 export function fileToUint8Array(file: File): Promise<Uint8Array> {
@@ -68,16 +68,16 @@ async function decodeJpeg(cv, jpegBytes: Uint8Array) {
     const rgbaDec = cv.matFromImageData(imageData);
 
     // 6) RGBA -> RGB Mat (uint8)
-    const rgb8Decoded = new cv.Mat();
-    cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
+    const bgr8Decoded = new cv.Mat();
+    cv.cvtColor(rgbaDec, bgr8Decoded, cv.COLOR_RGBA2BGR);
     rgbaDec.delete();
 
     // 7) Convert RGB uint8 to RGB float32 (CV_32FC3), normalize to [0, 1]
-    const rgb32fDecoded = new cv.Mat();
-    rgb8Decoded.convertTo(rgb32fDecoded, cv.CV_32F, 1.0 / 255.0);
-    rgb8Decoded.delete();
+    const bgr32fDecoded = new cv.Mat();
+    bgr8Decoded.convertTo(bgr32fDecoded, cv.CV_32F, 1.0 / 255.0);
+    bgr8Decoded.delete();
 
-    return { rgb32fDecoded, blob };
+    return { bgr32fDecoded: bgr32fDecoded, blob };
 }
 
 function downloadFile(filename: string, data: Uint8Array) {
@@ -106,8 +106,10 @@ export function EncodeFile() {
     const [decFile, setDecFile] = useState<File | null>(null);
     const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
-    const [w, setW] = useState(1072);
-    const [h, setH] = useState(1072);
+    // const [w, setW] = useState(1072);
+    // const [h, setH] = useState(1072);
+    const [w, setW] = useState(64);
+    const [h, setH] = useState(64);
     const [inpText, setInpText] = useState(sampleText)
 
     const dctStats = useMemo(() => {
@@ -121,17 +123,18 @@ export function EncodeFile() {
     
         const iter = BitsIteratorImpl.fromBytes(encoded)
         const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)
-        const res = encoder.encode();
+        const bgr32f = encoder.encode();
     
         //   let {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, 95);
         //   console.log('rgb8Decoded', rgb8Decoded)
     
         //   const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
         //   const decoded = decoder.decode(rgb8Decoded);
-          setRes(res);
+          setRes(bgr32f);
         //   console.log('encoded')
-          downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg", 0.1);
-     
+          downloadMatAsJpeg(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+          // downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg", 0.95);
+
         // console.log('median errors fraction', getMedian(rates))
       }, [cvLib, w, h, encFile])
 
@@ -142,14 +145,14 @@ export function EncodeFile() {
         const data = await fileToUint8Array(decFile);
         const ss = await getJpegSubsampling(decFile)
         console.log("subsampling info", ss)
-        const {rgb32fDecoded} = await decodeJpeg(cvLib.cv, data);
+        const {bgr32fDecoded} = await decodeJpeg(cvLib.cv, data);
 
         const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-        const decoded = decoder.decode(rgb32fDecoded);
+        const decoded = decoder.decode(bgr32fDecoded);
         const [filename, fileData] = await decodeFile(decoded);
         console.log(filename)
         downloadFile(filename, fileData)
-          setRes(rgb32fDecoded);
+          setRes(bgr32fDecoded);
         //   console.log('decoded')
      
         // console.log('median errors fraction', getMedian(rates))

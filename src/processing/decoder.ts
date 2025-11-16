@@ -2,6 +2,7 @@ import type {DctCoefConf, EncodingConf} from "./config";
 import {DctCalc} from "./dct";
 import {Uint8ArrayBuilder} from "./uint_array_builder";
 import {DctCoefIterator} from "./blocks_iterator.ts";
+import {printMat} from "./utils.ts";
 
 export interface Decoder {
     decode: (mat) => any;
@@ -166,8 +167,8 @@ export class DecoderImpl implements Decoder {
                 const bitValue = (value >> i) & 1;
                 this.res?.addBit(bitValue);
             }
-            console.log("value (", next.x, next.y, next.chIdx,
-                ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
+            // console.log("value (", next.x, next.y, next.chIdx,
+            //     ') rec', value, 'frac', value / max, 'unr', dctCoef * max)
             next = iter.next()
         }
     }
