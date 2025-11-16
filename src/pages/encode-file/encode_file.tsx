@@ -1,21 +1,21 @@
 import {Button, FileButton, Flex, NumberInput, Title, Typography} from "@mantine/core";
 import {downloadMatAsJpeg, MatRender} from "../../components/mat_render/MatRender";
 import {DefaultEncodingConf} from "../../processing/config";
-import {BitsIteratorImpl} from "../../processing/bits_iter";
-import {EncoderImpl} from "../../processing/encoder";
 import {DecoderImpl} from "../../processing/decoder";
 import {useCallback, useMemo, useState} from "react";
 import {useOpenCV} from "../../hooks/opencv";
-import {decodeFile, encodeFile, getApproxEffectiveCapacityBytes} from "../../models/protocol";
+import {decodeFile, getApproxEffectiveCapacityBytes} from "../../models/protocol";
 import {
-    decodeJpeg, deserializeMat,
+    decodeJpeg,
+    deserializeMat,
     downloadFile,
     fileToUint8Array,
     generateTimestampedId,
-    getJpegSubsampling
+    getJpegSubsampling, serializeMat
 } from "../../processing/utils.ts";
 import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
-import Worker from '../../workers/encoder?worker';
+import EncWorker from '../../workers/encoder?worker';
+import DecWorker from '../../workers/decoder?worker';
 
 export function EncodeFile() {
     const [encFile, setEncFile] = useState<File | null>(null);
@@ -31,7 +31,7 @@ export function EncodeFile() {
 
     const encode = useCallback(async () => {
         if (!encFile) return;
-        const worker = new Worker();
+        const worker = new EncWorker();
         worker.postMessage({
             type: 'start',
             data: {
@@ -56,31 +56,44 @@ export function EncodeFile() {
                 worker.terminate();
             }
         }
-        // const data = await fileToUint8Array(encFile);
-        // const encoded = await encodeFile(encFile.name, data)
-        //
-        // const iter = BitsIteratorImpl.fromBytes(encoded)
-        // const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)
-        // const bgr32f = encoder.encode();
-        //   setRes(bgr32f);
-        //   downloadMatAsJpeg(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
       }, [cvLib, w, h, encFile])
 
 
 
     const decode = useCallback(async () => {
         if (!decFile) return;
-        const rawFileData = await fileToUint8Array(decFile);
-        const ss = await getJpegSubsampling(decFile)
+        const fileRawData = await fileToUint8Array(decFile);
+        const ss = await getJpegSubsampling(decFile);
         console.log("subsampling info", ss)
-        const {bgr32fDecoded} = await decodeJpeg(cvLib.cv, rawFileData);
+        const {bgr32fDecoded} = await decodeJpeg(cvLib.cv, fileRawData);
+        const serialized = serializeMat(bgr32fDecoded)
+        const worker = new DecWorker();
+        worker.postMessage({
+            type: 'start',
+            data: {
+                bgrf32: serialized
+            }
+        })
+        worker.onmessage = (e: MessageEvent) => {
+            console.log("got message from worker", e.data)
+            const {type, data} = e.data;
+            if (type === 'progress') {
+                console.log('progress', data);
+            } else if (type === 'result') {
+                console.log('result received', data);
+                const bgr32f = deserializeMat(data.bgr32f, cvLib.cv);
 
-        const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-        const decoded = decoder.decode(bgr32fDecoded);
-        const {filename, data} = await decodeFile(decoded);
-        console.log(filename)
-        downloadFile(filename, data)
-        setRes(bgr32fDecoded);
+                console.log(data.filename)
+                downloadFile(data.filename, data.data)
+
+                setRes(bgr32f);
+
+                worker.terminate();
+            } else if (type === 'error') {
+                console.error('error from worker', data);
+                worker.terminate();
+            }
+        }
       }, [cvLib, decFile])
 
     const onSetW = useCallback((e) => {
