@@ -8,7 +8,7 @@ import { EncodeFile } from './pages/encode-file/encode_file';
 
 function App() {
   const [opened, { toggle }] = useDisclosure();
-  const version = import.meta.env.VITE_APP_VERSION ?? 'dev'
+  const version = import.meta.env.VITE_APP_VERSION ?? 'dev';
 
   return (
     <AppShell
@@ -22,26 +22,45 @@ function App() {
     >
       <AppShell.Header style={{ border: 0, display: 'flex', alignItems: 'left' }}>
         <Burger opened={opened} onClick={toggle} hiddenFrom="xs" size="md" />
-        <Flex direction={'row'} gap={'xl'} style={{ padding: '5px 20px', width: '100%' }} visibleFrom={'xs'} justify={'space-between'}>
+        <Flex
+          direction={'row'}
+          gap={'xl'}
+          style={{ padding: '5px 20px', width: '100%' }}
+          visibleFrom={'xs'}
+          justify={'space-between'}
+        >
           <Flex direction={'row'} gap={'xl'}>
             <Link to="/">file</Link>
             <Link to="/benchmark">benchmark</Link>
             <Link to="/block">single block</Link>
           </Flex>
-          <Text style={{color: "lightgray"}} size={'xs'}>{version}</Text>
+          <Flex direction={'row'} gap={'lg'}>
+            <Text style={{ color: 'lightgray', paddingTop: 4 }} size={'xs'}>
+              {version}
+            </Text>
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => window.open('https://github.com/ivanlukomskiy/jpeg_pack')}
+            >
+              <img src={'/jpeg_pack/github-mark.png'} width={24} height={24} />
+            </div>
+          </Flex>
         </Flex>
       </AppShell.Header>
       <AppShell.Navbar hiddenFrom="xs" style={{ display: 'flex', flexDirection: 'column', maxWidth: '100%' }}>
-        <Link to="/" style={{ padding: 20 }} onClick={toggle}>
+        <Link to="/" style={{ padding: 16 }} onClick={toggle}>
           file
         </Link>
-        <Link to="/benchmark" style={{ padding: 20 }} onClick={toggle}>
+        <Link to="/benchmark" style={{ padding: 16 }} onClick={toggle}>
           benchmark
         </Link>
-        <Link to="/block" style={{ padding: 20 }} onClick={toggle}>
+        <Link to="/block" style={{ padding: 16 }} onClick={toggle}>
           single block
         </Link>
-        <Text style={{color: "lightgray"}}>{version}</Text>
+        <Text style={{ color: 'lightgray', padding: 24 }}>{version}</Text>
+        <div style={{ cursor: 'pointer' }} onClick={() => window.open('https://github.com/ivanlukomskiy/jpeg_pack')}>
+          <img src={'/jpeg_pack/github-mark.png'} width={24} height={24} />
+        </div>
       </AppShell.Navbar>
       <AppShell.Main>
         <Routes>
