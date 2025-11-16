@@ -1,184 +1,190 @@
-import { Button, FileButton, FileInput, Flex, NumberInput, SegmentedControl, Textarea, Title, Typography } from "@mantine/core";
-import { downloadMatAsJpeg, MatRender } from "../../components/mat_render/MatRender";
-import { DefaultEncodingConf } from "../../processing/config";
-import { BitsIteratorImpl, compareBits, randomUint8Arr } from "../../processing/bits_iter";
-import { EncoderImpl } from "../../processing/encoder";
-import { DecoderImpl } from "../../processing/decoder";
-import { useCallback, useMemo, useState } from "react";
-import { useOpenCV } from "../../hooks/opencv";
-import { sampleText } from "../../processing/sample_text";
-import { addErrorCorrection, decodeErrorCorrection } from "../../processing/reed_solomon/adapter";
-import { decodeFile, encodeFile, getApproxEffectiveCapacityBytes } from "../../models/protocol";
+import {Button, FileButton, Flex, Loader, NumberInput, Text, Title} from "@mantine/core";
+import {DefaultEncodingConf} from "../../processing/config";
+import {useCallback, useMemo, useState} from "react";
+import {useOpenCV} from "../../hooks/opencv";
+import {getApproxEffectiveCapacityBytes} from "../../models/protocol";
+import {
+    decodeJpeg,
+    deserializeMat,
+    downloadFile,
+    fileToUint8Array,
+    generateTimestampedId,
+    getJpegSubsampling, matToJpegFileResult,
+    serializeMat
+} from "../../processing/utils.ts";
+import {buildDctConfStats} from "../../processing/blocks_iterator.ts";
+import EncWorker from '../../workers/worker_encoder.ts?worker';
+import DecWorker from '../../workers/worker_decoder.ts?worker';
+import {
+    createDecodingProgressTracker,
+    createEncodingProgressTracker,
+    DecodingStep,
+    DecodingStepDesc,
+    EncodingStep,
+    EncodingStepDesc,
+    type StepStatus,
+    StepStatusCode
+} from "../../processing/progress.ts";
 
-export function fileToUint8Array(file: File): Promise<Uint8Array> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = (event: any) => {
-            const arrayBuffer = event.target.result;
-            const uint8Array = new Uint8Array(arrayBuffer);
-            resolve(uint8Array);
-        };
-        
-        reader.onerror = (error) => {
-            reject(error);
-        };
-        
-        reader.readAsArrayBuffer(file);
-    });
-}
-function generateTimestampedId() {
-    // Get current date in YYYY-MM-DD format
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD"
-    
-    // Generate random 8-character alphanumeric string
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let randomStr = '';
-    for (let i = 0; i < 8; i++) {
-        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+function getStepIcon(status: number) {
+    let icon = null;
+    let color = 'inherit';
+    switch (status) {
+        case StepStatusCode.COMPLETED:
+            icon = '✓';
+            color = 'green';
+            break;
+        case StepStatusCode.IN_PROGRESS:
+            icon = <Loader size={12}></Loader>;
+            break;
+        case StepStatusCode.FAILED:
+            icon = 'X';
+            color = 'red';
+            break;
+        case StepStatusCode.PENDING:
+            icon = '·';
+            break;
     }
-    
-    return `${dateStr}-${randomStr}`;
+    return <div style={{fontWeight: 'bold', width: '20px', color, flexShrink: '0'}}>{icon}</div>
 }
 
-// Usage
-const id = generateTimestampedId(); // "2024-01-15-aB3d9fG7"
-
-// rgb8: CV_8UC3 (RGB), range 0..255
-async function decodeJpeg(cv, jpegBytes: Uint8Array) {
-    const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
-
-//   // --- ENCODE via Canvas ---
-//   // 1) RGB -> RGBA (for canvas)
-//   let rgba = new cv.Mat();
-//   cv.cvtColor(rgb8, rgba, cv.COLOR_RGB2RGBA);
-
-//   // 2) Draw to a canvas
-//   const encCanvas = document.createElement('canvas');
-//   encCanvas.width = rgba.cols;
-//   encCanvas.height = rgba.rows;
-//   cv.imshow(encCanvas, rgba);
-//   rgba.delete();
-
-//   // 3) Encode to JPEG using browser encoder
-//   const blob = await new Promise(res => encCanvas.toBlob(res, 'image/jpeg', quality));
-
-  // --- DECODE via Canvas/ImageData ---
-  // 4) Decode blob to an <img> and draw it
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.src = url;
-  await img.decode();
-
-  const decCanvas = document.createElement('canvas');
-  decCanvas.width = img.naturalWidth;
-  decCanvas.height = img.naturalHeight;
-  const dctx = decCanvas.getContext('2d');
-  dctx.drawImage(img, 0, 0);
-  URL.revokeObjectURL(url);
-
-  // 5) Read pixels back to Mat (RGBA) without cv.imread
-  const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
-  const rgbaDec = cv.matFromImageData(imageData);
-
-  // 6) RGBA -> RGB Mat
-  const rgb8Decoded = new cv.Mat();
-  cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
-  rgbaDec.delete();
-
-  return { rgb8Decoded, blob };
+const stepTextColorMap = {
+    [StepStatusCode.COMPLETED]: 'green',
+    [StepStatusCode.IN_PROGRESS]: 'black',
+    [StepStatusCode.FAILED]: 'red',
+    [StepStatusCode.PENDING]: 'gray',
 }
 
-function downloadFile(filename: string, data: Uint8Array) {
-    // Create blob from Uint8Array
-    const blob = new Blob([data]);
-    
-    // Create object URL
-    const url = URL.createObjectURL(blob);
-    
-    // Create hidden link
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Clean up
-    URL.revokeObjectURL(url);
+function validateDimension(value: number) {
+    if (value <= 0) return 'Must be a positive integer';
+    if (value % 16 != 0) return 'Must be a multiple of 16';
+    return null;
 }
 
 export function EncodeFile() {
     const [encFile, setEncFile] = useState<File | null>(null);
     const [decFile, setDecFile] = useState<File | null>(null);
-    const [res, setRes] = useState<any>(null)
     const cvLib = useOpenCV();
-    const [w, setW] = useState(1080);
-    const [h, setH] = useState(1080);
-    const [inpText, setInpText] = useState(sampleText)
+    const [w, setW] = useState(32);
+    const [h, setH] = useState(32);
+    // const [w, setW] = useState(1024);
+    // const [h, setH] = useState(1024);
+    const [progress, setProgress] = useState<Record<string, StepStatus> | null>();
+    const [resultFile, setResultFile] = useState<Uint8Array | null>(null);
+    const [resultFileName, setResultFileName] = useState<string | null>(null);
 
-    const bytesPerBlock = useMemo(() => {
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
-        })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        return size / 8;
+    const dctStats = useMemo(() => {
+        return buildDctConfStats(DefaultEncodingConf);
     }, [])
+
+    const updateProgress = useCallback((prog: Record<number, StepStatus>, descMap: Record<number, string>) => {
+        const out: Record<string, StepStatus> = {};
+        for (const step in prog) {
+            const stepNum = parseInt(step);
+            out[descMap[stepNum]] = prog[stepNum];
+        }
+        setProgress(out);
+    }, []);
 
     const encode = useCallback(async () => {
         if (!encFile) return;
-        const blocksSide = 8;
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
+        const worker = new EncWorker();
+        worker.postMessage({
+            type: 'start',
+            data: {
+                w,
+                h,
+                encFile
+            }
         })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        size *= blocksSide * blocksSide;
-
-        const data = await fileToUint8Array(encFile);
-        const encoded = await encodeFile(encFile.name, data)
-    
-        const iter = BitsIteratorImpl.fromBytes(encoded)
-        const encoder = new EncoderImpl(cvLib.cv, w, h, iter, DefaultEncodingConf)
-        const [image, res] = encoder.encode();
-    
-        //   let {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, 95);
-        //   console.log('rgb8Decoded', rgb8Decoded)
-    
-        //   const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-        //   const decoded = decoder.decode(rgb8Decoded);
-          setRes(res);
-        //   console.log('encoded')
-          downloadMatAsJpeg(res, generateTimestampedId() + ".jpeg");
-     
-        // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, encFile])
+        let lastProgress: Record<number, StepStatus> = {};
+        worker.onmessage = async (e: MessageEvent) => {
+            const {type, data} = e.data;
+            if (type === 'progress') {
+                const progress = data as Record<number, StepStatus>;
+                lastProgress = progress;
+                updateProgress(progress, EncodingStepDesc)
+            } else if (type === 'result') {
+                const tracker = createEncodingProgressTracker(lastProgress);
+                tracker.markInProgress(EncodingStep.CREATE_IMAGE)
+                updateProgress(tracker.serialize(), EncodingStepDesc);
+                try {
+                    const bgr32f = deserializeMat(data, cvLib.cv);
+                    const fileRes = await matToJpegFileResult(bgr32f, generateTimestampedId() + ".jpeg", 0.95);
+                    downloadFile(fileRes.filename, fileRes.data)
+                    setResultFile(fileRes.data);
+                    setResultFileName(fileRes.filename);
+                    tracker.markCurrentStepCompleted();
+                    updateProgress(tracker.serialize(), EncodingStepDesc);
+                } catch (e) {
+                    tracker.markCurrentStepFailed((e as Error).message);
+                    updateProgress(tracker.serialize(), EncodingStepDesc);
+                }
+                worker.terminate();
+            } else if (type === 'error') {
+                console.error('error from worker', data);
+                worker.terminate();
+            }
+        }
+      }, [encFile, w, h, updateProgress, cvLib.cv])
 
 
 
     const decode = useCallback(async () => {
         if (!decFile) return;
-        const data = await fileToUint8Array(decFile);
-        const {rgb8Decoded} = await decodeJpeg(cvLib.cv, data);
+        let tracker = createDecodingProgressTracker();
 
-        const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-        const decoded = decoder.decode(rgb8Decoded);
-        const [filename, fileData] = await decodeFile(decoded);
-        console.log(filename)
-        downloadFile(filename, fileData)
-          setRes(rgb8Decoded);
-        //   console.log('decoded')
-     
-        // console.log('median errors fraction', getMedian(rates))
-      }, [cvLib, res, inpText, w, h, decFile])
+        tracker.markInProgress(DecodingStep.LOAD_IMAGE)
+        updateProgress(tracker.serialize(), DecodingStepDesc);
+
+        let bgr32fDecoded: any = null;
+        let serialized: any;
+        try {
+            const fileRawData = await fileToUint8Array(decFile);
+            const ss = await getJpegSubsampling(decFile);
+            console.log("subsampling info", ss)
+            const jpegDecodeResult = await decodeJpeg(cvLib.cv, fileRawData);
+            bgr32fDecoded = jpegDecodeResult.bgr32fDecoded;
+            tracker.markCurrentStepCompleted();
+            updateProgress(tracker.serialize(), DecodingStepDesc);
+            serialized = serializeMat(bgr32fDecoded)
+        } catch (e) {
+            tracker.markCurrentStepFailed((e as Error).message);
+            updateProgress(tracker.serialize(), DecodingStepDesc);
+            return;
+        }
+
+        const worker = new DecWorker();
+        let lastProgress: Record<number, StepStatus> = {};
+        worker.postMessage({
+            type: 'start',
+            data: {
+                bgrf32: serialized,
+                trackerState: tracker.serialize(),
+            }
+        })
+        worker.onmessage = (e: MessageEvent) => {
+            const {type, data} = e.data;
+            if (type === 'progress') {
+                const progress = data as Record<number, StepStatus>;
+                lastProgress = progress;
+                updateProgress(progress, DecodingStepDesc)
+            } else if (type === 'result') {
+                console.log(data.filename)
+                tracker = createDecodingProgressTracker(lastProgress);
+                updateProgress(tracker.serialize(), DecodingStepDesc);
+                downloadFile(data.filename, data.data)
+                setResultFile(data.data);
+                setResultFileName(data.filename);
+                tracker.markCurrentStepCompleted();
+                updateProgress(tracker.serialize(), DecodingStepDesc);
+                worker.terminate();
+            } else if (type === 'error') {
+                console.error('error from worker', data);
+                worker.terminate();
+            }
+        }
+      }, [cvLib.cv, decFile, updateProgress])
 
     const onSetW = useCallback((e) => {
         setW(e);
@@ -187,47 +193,86 @@ export function EncodeFile() {
         setH(e);
     }, []);
 
-    const onSetInpText = useCallback((e) => {
-        setInpText(e.target.value);
-    }, []);
-
     const capacityBytes = useMemo(() => {
-        return w / 8 * h / 8 * bytesPerBlock;
-    }, [w, h])
+        return w / 16 * h / 16 * dctStats.blockSizeBits / 8;
+    }, [w, h, dctStats.blockSizeBits])
 
     const approxEffectiveCapacityBytes = useMemo(() => {
         return getApproxEffectiveCapacityBytes(capacityBytes);
     }, [capacityBytes]);
 
-    const usedBytes = useMemo(() => {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(inpText);
-        return data.length;
-    }, [inpText])
+    const detailsLine = useCallback((title: string, value: string, invalid: boolean = false) => {
+        return (<Flex direction={'row'} justify={'space-between'}>
+            <Text size={'sm'} style={{color: '#434343'}}>{title}</Text>
+            <Text size={'sm'} style={{color: invalid ? 'red' : 'inherit'}}>{value}</Text>
+        </Flex>)
+    }, []);
+
+    const details = useMemo(() => {
+        return (
+            <Flex direction={'column'} gap={'sm'} style={{padding: '5px'}}>
+              {detailsLine('16x16 block', (dctStats.blockSizeBits / 8).toString() + ' bytes')}
+              {detailsLine('capacity', (capacityBytes / 1024).toFixed(2) + ' KB')}
+              {detailsLine('effective', approxEffectiveCapacityBytes > 0 ? '~'
+                  + (approxEffectiveCapacityBytes / 1024).toFixed(2)
+                  + ' KB' : 'N/A', approxEffectiveCapacityBytes <= 0)}
+            </Flex>
+        )
+    }, [approxEffectiveCapacityBytes, capacityBytes, dctStats.blockSizeBits, detailsLine]);
+
+    const download = useCallback(() => {
+        if (!resultFile || !resultFileName) return;
+        downloadFile(resultFileName, resultFile)
+    }, [resultFile, resultFileName])
+
+    const progressTable = useMemo(() => {
+        if (!progress) return null;
+        return (
+            <Flex direction={'column'} gap={'lg'}>
+                <Flex direction={'column'}>
+                {Object.keys(progress).map((key) => {
+                    const step = progress[key];
+                    return (<Flex direction={'row'} key={key} style={{width: '350px'}} gap={'xs'} justify={'space-between'}>
+                        <Flex direction={'row'} gap={'xs'} style={{flexShrink: 1}}>
+                            {getStepIcon(step.code)}
+                            <Flex direction={'column'} style={{textAlign: 'left', flexShrink: 1}}>
+                                <Text style={{color: stepTextColorMap[step.code]}}>{key}</Text>
+                                {step.error && <Text style={{color: 'red'}} size={'xs'}>{step.error}</Text>}
+                            </Flex>
+                        </Flex>
+                        <Text style={{color: 'darkgray', paddingTop: 2, flexShrink: 0}} size={'sm'}>
+                            {step.endTime && step.startTime ? step.endTime - step.startTime + ' ms' : ''}
+                        </Text>
+                    </Flex>)
+                })}
+                </Flex>
+                <Flex direction={'column'} gap={'sm'}>
+                {resultFileName}
+                {resultFile && <Button onClick={download}>Download</Button>}
+                </Flex>
+            </Flex>
+        )
+    }, [download, progress, resultFile, resultFileName])
     
       return (
         <Flex direction={'row'} gap={'xl'} justify={'center'}>
-          {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+          {!progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Encode</Title>
-            <NumberInput label={'width'} hideControls min={8} max={1080} value={w} onChange={onSetW} />
-            <NumberInput label={'height'} hideControls min={8} max={1080} value={h} onChange={onSetH} />
+            <NumberInput label={'width'} hideControls min={16} max={1080} value={w} onChange={onSetW} error={validateDimension(w)} />
+            <NumberInput label={'height'} hideControls min={16} max={1080} value={h} onChange={onSetH} error={validateDimension(h)} />
+              {details}
             {encFile?.name}
             <FileButton onChange={setEncFile} >
             {(props) => <Button {...props}>Choose file</Button>}
             </FileButton>
-            <Button onClick={encode} disabled={!encFile}>
+            <Button onClick={encode} disabled={!encFile || validateDimension(w) != null || validateDimension(h) != null || approxEffectiveCapacityBytes <= 0}>
               Encode
             </Button>
           </Flex>}
-          {!res && <Flex direction={'column'} gap={'sm'} style={{paddingTop: '55px', alignItems: 'flex-start', marginRight: '60px'}}>
-            {/* <Title size={'lg'}>Details</Title> */}
-            <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
-            <Typography>Effective: ~{(approxEffectiveCapacityBytes / 1024).toFixed(2)} KB</Typography>
-            {/* <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography> */}
-            <Typography>Bytes per block: {bytesPerBlock}</Typography>
+          {<Flex direction={'column'} gap={'sm'} style={{paddingTop: '55px', alignItems: 'flex-start', marginRight: '60px'}}>
           </Flex>}
 
-          {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+          {!progress && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
             <Title size={'lg'}>Decode</Title>
             {decFile?.name}
             <FileButton onChange={setDecFile} accept="image/png,image/jpeg">
@@ -237,10 +282,8 @@ export function EncodeFile() {
               Decode
             </Button>
           </Flex>}
-          {res && <Flex direction={'column'} gap={'sm'}>
-            <Title size={'lg'}>Result</Title>
-            <MatRender mat={res} />
-          </Flex>}
+
+            {progress && progressTable}
           
         </Flex>
       )

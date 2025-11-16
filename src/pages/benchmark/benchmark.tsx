@@ -1,55 +1,25 @@
-import { Button, Flex, NumberInput, SegmentedControl, Title, Typography } from "@mantine/core";
-import { MatRender } from "../../components/mat_render/MatRender";
-import { DefaultEncodingConf } from "../../processing/config";
-import { BitsIteratorImpl, buildErrSourceAcc, calculateErrorSources, compareBits, compareBytes, normalizeErrorSources, randomUint8Arr } from "../../processing/bits_iter";
-import { EncoderImpl } from "../../processing/encoder";
-import { DecoderImpl } from "../../processing/decoder";
-import { useCallback, useMemo, useState } from "react";
-import { useOpenCV } from "../../hooks/opencv";
-import { BarChart } from "@mantine/charts";
+import {Button, Flex, NumberInput, Title, Typography} from "@mantine/core";
+import {MatRender} from "../../components/mat_render/MatRender";
+import {DefaultEncodingConf} from "../../processing/config";
+import {
+    BitsIteratorImpl,
+    buildErrSourceAcc,
+    calculateErrorSources,
+    compareBits,
+    compareBytes,
+    randomUint8Arr
+} from "../../processing/bits_iter";
+import {EncoderImpl} from "../../processing/encoder";
+import {DecoderImpl} from "../../processing/decoder";
+import {useCallback, useMemo, useState} from "react";
+import {useOpenCV} from "../../hooks/opencv";
+import {BarChart} from "@mantine/charts";
+import {jpegRoundTripBgr32f} from "../../processing/utils.ts";
+import {buildDctConfStats, normalizeErrorSources} from "../../processing/blocks_iterator.ts";
+import {ErrTable} from "../../components/err_table/ErrTable.tsx";
+import {analyzeF32Matrix, type ChannelStats} from "../../processing/matrix_analysis.ts";
+import {MatChart} from "../../components/mat_chart/MatChart.tsx";
 
-// rgb8: CV_8UC3 (RGB), range 0..255
-async function jpegRoundTrip(cv, rgb8, quality = 0.95) {
-  // --- ENCODE via Canvas ---
-  // 1) RGB -> RGBA (for canvas)
-  const rgba = new cv.Mat();
-  cv.cvtColor(rgb8, rgba, cv.COLOR_RGB2RGBA);
-
-  // 2) Draw to a canvas
-  const encCanvas = document.createElement('canvas');
-  encCanvas.width = rgba.cols;
-  encCanvas.height = rgba.rows;
-  cv.imshow(encCanvas, rgba);
-  rgba.delete();
-
-  // 3) Encode to JPEG using browser encoder
-  const blob = await new Promise(res => encCanvas.toBlob(res, 'image/jpeg', quality));
-
-  // --- DECODE via Canvas/ImageData ---
-  // 4) Decode blob to an <img> and draw it
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.src = url;
-  await img.decode();
-
-  const decCanvas = document.createElement('canvas');
-  decCanvas.width = img.naturalWidth;
-  decCanvas.height = img.naturalHeight;
-  const dctx = decCanvas.getContext('2d');
-  dctx.drawImage(img, 0, 0);
-  URL.revokeObjectURL(url);
-
-  // 5) Read pixels back to Mat (RGBA) without cv.imread
-  const imageData = dctx.getImageData(0, 0, decCanvas.width, decCanvas.height);
-  const rgbaDec = cv.matFromImageData(imageData);
-
-  // 6) RGBA -> RGB Mat
-  const rgb8Decoded = new cv.Mat();
-  cv.cvtColor(rgbaDec, rgb8Decoded, cv.COLOR_RGBA2RGB);
-  rgbaDec.delete();
-
-  return { rgb8Decoded, blob };
-}
 
 function getPercentile(sortedNumbers: number[], percentile: number) {
     const index = (percentile / 100) * (sortedNumbers.length - 1);
@@ -70,67 +40,84 @@ interface PercentilePoint {
 
 export function Benchmark() {
     const [res, setRes] = useState<any>(null)
-    const [iterations, setIterations] = useState(50);
-    const [jpegQuality, setJpegQuality] = useState(95);
-    const [blocksPerAxis, setBlocksPerAxis] = useState(8);
+    const [iterations, setIterations] = useState(20);
+    const [jpegQuality, setJpegQuality] = useState(.95);
+    const [blocksPerAxis, setBlocksPerAxis] = useState(4);
     const [progress, setProgress] = useState<number | null>(null);
     const cvLib = useOpenCV();
     const [bitErrRates, setBitErrRate] = useState<number[] | null>(null);
     const [byteErrRates, setByteErrRate] = useState<number[] | null>(null);
     const [errByDctPos, setErrByDctPos] = useState<Record<string, number> | null>(null);
+    const [ycrcbStats, setYCrCbStats] = useState<Record<string, ChannelStats> | null>(null);
+    const [rgbStats, setRgbStats] = useState<Record<string, ChannelStats> | null>(null);
 
     const benchmark = useCallback(async () => {
-        let size = 0;
-        DefaultEncodingConf.chromaConf.forEach(c => {
-          size += c.bitsCapacity * 2;
-        })
-        DefaultEncodingConf.lumaConf.forEach(c => {
-          size += c.bitsCapacity;
-        })
-        size *= blocksPerAxis * blocksPerAxis;
-    
+        try {
+        // let size = 0;
+        // DefaultEncodingConf.chromaConf.forEach(c => {
+        //   size += c.bitsCapacity * 2 / 4;
+        // })
+        // DefaultEncodingConf.lumaConf.forEach(c => {
+        //   size += c.bitsCapacity;
+        // })
+        // size *= blocksPerAxis * blocksPerAxis;
+        const stats = buildDctConfStats(DefaultEncodingConf);
+        const size = stats.blockSizeBits * blocksPerAxis * blocksPerAxis;
+        const ycrcbStats: Record<string, ChannelStats> = {}
+        const rgbStats: Record<string, ChannelStats> = {}
+
         const bitRates = [];
         const byteRates = [];
         setBitErrRate([]);
         setProgress(0.);
-        const acc = buildErrSourceAcc();
+        const acc = buildErrSourceAcc(stats);
         for (let i = 0; i < iterations; i ++) {
           const original = randomUint8Arr(size);
           const iter = BitsIteratorImpl.fromBytes(original);
-          const encoder = new EncoderImpl(cvLib.cv, 8 * blocksPerAxis, 8 * blocksPerAxis, iter, DefaultEncodingConf)
-          const [image, res] = encoder.encode();
+          const encoder = new EncoderImpl(cvLib.cv, 16 * blocksPerAxis, 16 * blocksPerAxis, iter, DefaultEncodingConf)
+          const res = encoder.encode();
+          analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
+          analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
     
-          const {rgb8Decoded} = await jpegRoundTrip(cvLib.cv, res, jpegQuality);
+          const {bgr32fDecoded} = await jpegRoundTripBgr32f(cvLib.cv, res, jpegQuality);
     
           const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf)
-          const decoded = decoder.decode(rgb8Decoded);
+          const decoded = decoder.decode(bgr32fDecoded);
           setRes(res);
+          console.log("original", original)
+          console.log("decoded", decoded)
           const bitErrorsCount = compareBits(original, decoded)
           const byteErrorsCount = compareBytes(original, decoded)
-          calculateErrorSources(original, decoded, acc);
+          calculateErrorSources(original, decoded, acc, stats);
           bitRates.push(bitErrorsCount / size)
           byteRates.push(byteErrorsCount / original.length)
           setBitErrRate([...bitRates])
           setByteErrRate([...byteRates])
           setProgress((i + 1) / iterations);
         }
-        normalizeErrorSources(acc);
-        setErrByDctPos(acc);
-        console.log('acc', acc)
+        const normalized = normalizeErrorSources(acc, stats, 16 * blocksPerAxis, 16 * blocksPerAxis, iterations);
+        setErrByDctPos(normalized);
         setProgress(null);
-      }, [cvLib, res, jpegQuality, iterations, blocksPerAxis])
+        setRgbStats(rgbStats)
+        setYCrCbStats(ycrcbStats)
+        } catch(e) {
+            console.error(e)
+            setProgress(null);
+            return null;
+        }
+      }, [cvLib, jpegQuality, iterations, blocksPerAxis])
 
       const bitPercentiles = useMemo(() => {
-        if (!bitErrRates || bitErrRates.length == 0) return null;
-        const sorted = [...bitErrRates].sort((a, b) => a - b);
-        const res: PercentilePoint[] = [];
-        percentilePoints.forEach(p => {
-            res.push({
-                value: getPercentile(sorted, p) * 100,
-                percentile: `p${p}`,
-            })
-        })
-        return res;
+          if (!bitErrRates || bitErrRates.length == 0) return null;
+          const sorted = [...bitErrRates].sort((a, b) => a - b);
+          const res: PercentilePoint[] = [];
+          percentilePoints.forEach(p => {
+              res.push({
+                  value: getPercentile(sorted, p) * 100,
+                  percentile: `p${p}`,
+              })
+          })
+          return res;
       }, [bitErrRates])
 
       const bytePercentiles = useMemo(() => {
@@ -159,8 +146,8 @@ export function Benchmark() {
   }, []);
     
       return (
-        <Flex direction={'row'} gap={'xl'}>
-          <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
+        <Flex direction={'row'} gap={'xl'} style={{width:'100%'}}>
+          <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px', flexGrow: 0}}>
             <Title size={'lg'}>Settings</Title>
             <NumberInput label="iterations" value={iterations} min={0} onChange={onIterationsChanged} hideControls />
             <NumberInput label="jpeg quality" value={jpegQuality} min={0} max={100} onChange={onJpegQualityChanged} hideControls />
@@ -169,19 +156,22 @@ export function Benchmark() {
               Start
             </Button>
           </Flex>
-          <Flex direction={'column'} gap={'sm'}>
+          <Flex direction={'column'} gap={'sm'} style={{flexGrow: 0}}>
             <Title size={'lg'}>Image</Title>
             <MatRender mat={res} />
+              {errByDctPos && <Typography>Err chance per bit</Typography>}
+              {errByDctPos && <ErrTable errByName={errByDctPos} />}
             
           </Flex>
-          <Flex direction={'column'} gap={'sm'} style={{width: '300px'}}>
+          <Flex direction={'column'} gap={'sm'} style={{flexGrow: 1}}>
             <Title size={'lg'}>Stats</Title>
             {/* {medianErrorRate !== null && <Typography >Errors rate median: {(medianErrorRate*100.).toFixed(2)}%</Typography>} */}
-            
-            {bitPercentiles && <>
+            <Flex direction={'row'} gap={'xl'}>
+            {bitPercentiles && <Flex direction={'column'}>
                 <Typography>Bit err rate, % by percentiles</Typography>
                 <BarChart
                     h={200}
+                    w={300}
                     data={bitPercentiles}
                     dataKey="percentile"
                     series={[
@@ -189,11 +179,12 @@ export function Benchmark() {
                     ]}
                     tickLine="y"
                 />
-            </>}
-            {bytePercentiles && <>
+            </Flex>}
+            {bytePercentiles && <Flex direction={'column'}>
                 <Typography>Byte err rate, % by percentiles</Typography>
                 <BarChart
                     h={200}
+                    w={300}
                     data={bytePercentiles}
                     dataKey="percentile"
                     series={[
@@ -201,11 +192,10 @@ export function Benchmark() {
                     ]}
                     tickLine="y"
                 />
-            </>}
-
-            {errByDctPos && Object.keys(errByDctPos).map((key) => 
-               ( <Typography key={key}>{key}: {(errByDctPos[key] * 100).toFixed(2)}%</Typography>)
-            )}
+            </Flex>}
+            </Flex>
+          {ycrcbStats && <MatChart chStats={ycrcbStats}/>}
+        {rgbStats && <MatChart chStats={rgbStats}/>}
         </Flex>
         </Flex>
       )

@@ -1,87 +1,154 @@
-import type { BitsIterator } from "./bits_iter";
-import type { DctCoefConf, EncodingConf } from "./config";
-import { DctCalc } from "./dct";
+import type {BitsIterator} from "./bits_iter";
+import type {EncodingConf} from "./config";
+import {DctCalc} from "./dct";
+import {DctCoefIterator} from "./blocks_iterator.ts";
+import {EncodingStep, StepStatusCode} from "./progress.ts";
 
 export interface Encoder {
-    encode: () => any;
+    encode: (debug?: boolean, progress?: (step: number, state: number) => void) => any;
 }
 
 export class EncoderImpl implements Encoder {
-    private image: any;
+    private channels: any;
     private bitsIter: BitsIterator;
     private conf: EncodingConf;
     private cv: any;
-    private x: number = 0;
-    private y: number = 0;
-    private ch: number = 0;
+    private height: number;
+    private width: number;
+
+    // step-by-step matrices for debugging
+    private dataMatrix: any;
+    public ycrcb: any;
+    public transformed: any;
+    public bgr32f: any;
 
     constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
+        if (height % 16 !== 0 || width % 16 != 0) throw new Error("dimensions should be multiples of 16");
 
-        this.image = new cv.Mat(width, height, cv.CV_32FC3)
-        this.image.setTo(new cv.Scalar(0, .5, .5))
-        this.bitsIter = bitsIter
-        this.conf = conf;
-        this.cv = cv
-    }
+        this.height = height;
+        this.width = width;
 
-    public encode() {
-        const dctCalc = new DctCalc(this.cv);
-        dctCalc.init()
-        while (this.ch < 3) {
-            this.encodeNextBlock(dctCalc);
+        this.channels = new cv.MatVector();
+        for (let i = 0; i < 3; i++) {
+            const ds = i === 0 ? 1 : 2;
+            const rows = Math.max(1, (height / ds) | 0); // integer, >= 1
+            const cols = Math.max(1, (width  / ds) | 0); // integer, >= 1
+
+            const mat = cv.Mat.zeros(rows, cols, cv.CV_32FC1);
+            this.channels.push_back(mat);
         }
-        dctCalc.cleanup();
 
-        const rgb32 = new this.cv.Mat();
-        this.cv.cvtColor(this.image, rgb32, this.cv.COLOR_YCrCb2RGB)
-        this.cv.min(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [1,1,1,0]), rgb32);
-        this.cv.max(rgb32, new this.cv.Mat(rgb32.rows, rgb32.cols, rgb32.type(), [0,0,0,0]), rgb32);
-
-        const rgb8 = new this.cv.Mat();
-        rgb32.convertTo(rgb8, this.cv.CV_8U, 255);
-
-        const ycrcb8 = new this.cv.Mat();
-        this.image.convertTo(ycrcb8, this.cv.CV_8U, 255);
-
-        return [ycrcb8, rgb8];
+        this.bitsIter = bitsIter;
+        this.conf = conf;
+        this.cv = cv;
     }
 
-    private encodeNextBlock(dctCalc: DctCalc) {
-        const dctMat = new this.cv.Mat(8, 8, this.cv.CV_32F);
-        dctMat.setTo(new this.cv.Scalar(0))
-        const conf = this.ch == 0 ? this.conf.lumaConf : this.conf.chromaConf;
-        const tranform = this.ch == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
-        conf.forEach((c: DctCoefConf) => {
-            const byte = this.bitsIter.nextN(c.bitsCapacity) ?? 0;
-            const max = (1 << c.bitsCapacity) - 1;
-            dctMat.floatPtr(c.y, c.x)[0] = byte / max;
-        })
-
-        const blockImage = dctCalc.idct8x8Mat(dctMat);
-
-        for (let y = 0; y < 8; y++) {
-            for (let x = 0; x < 8; x++) {
-                let pixelValue = blockImage.floatPtr(y, x)[0]
-                pixelValue = pixelValue
-                    * tranform.multiplier 
-                    + tranform.addition;
-                
-                if (conf.length == 0) pixelValue = 0.5;
-                this.image.floatPtr(this.y + y, this.x + x)[this.ch] = pixelValue;
+    private upscale(mat) {
+        const dst = new this.cv.Mat(this.height, this.width, this.cv.CV_32FC1, new this.cv.Scalar(0));
+        // fixme slow
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                dst.floatPtr(y, x)[0] = mat.floatPtr(
+                    Math.floor(y / 2),
+                    Math.floor(x / 2),
+                )[0];
             }
         }
-        
-        blockImage.delete();
+        return dst;
+    }
 
-        this.x += 8
-        if (this.x >= this.image.cols) {
-            this.x = 0;
-            this.y += 8;
+    private snapshot() {
+        const channels = new this.cv.MatVector();
+        channels.push_back(this.channels.get(0))
+
+        const upscaled1 = this.upscale(this.channels.get(1));
+        channels.push_back(upscaled1)
+
+        const upscaled2 = this.upscale(this.channels.get(2));
+        channels.push_back(upscaled2)
+
+        const dst = new this.cv.Mat();
+        this.cv.merge(channels, dst);
+        channels.delete();
+        upscaled1.delete();
+        upscaled2.delete();
+
+        return dst;
+    }
+
+    public encode(debug: boolean = false, progress?: (step: number, state: number) => void): any {
+        progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.IN_PROGRESS);
+        this.populateDctMatrix();
+        if (debug) this.dataMatrix = this.snapshot();
+        progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.COMPLETED);
+
+        progress?.(EncodingStep.DCT, StepStatusCode.IN_PROGRESS);
+        const dctCalc = new DctCalc(this.cv);
+        dctCalc.init()
+        this.applyDct(dctCalc);
+        dctCalc.cleanup();
+        if (debug) this.ycrcb = this.snapshot();
+        progress?.(EncodingStep.DCT, StepStatusCode.COMPLETED);
+
+        progress?.(EncodingStep.NORMALIZE, StepStatusCode.IN_PROGRESS);
+        this.applyTransforms();
+        const transformed = this.snapshot();
+        if (debug) this.transformed = transformed;
+        progress?.(EncodingStep.NORMALIZE, StepStatusCode.COMPLETED);
+
+
+        progress?.(EncodingStep.CONVERT_TO_BGR, StepStatusCode.IN_PROGRESS);
+        this.bgr32f = new this.cv.Mat();
+        this.cv.cvtColor(transformed, this.bgr32f, this.cv.COLOR_YCrCb2BGR)
+        const min = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [1,1,1,0]);
+        this.cv.min(this.bgr32f, min, this.bgr32f);
+        min.delete();
+        const max = new this.cv.Mat(this.bgr32f.rows, this.bgr32f.cols, this.bgr32f.type(), [0,0,0,0]);
+        this.cv.max(this.bgr32f, max, this.bgr32f);
+        max.delete();
+        this.channels.get(0).delete();
+        this.channels.get(1).delete();
+        this.channels.get(2).delete();
+        this.channels.delete();
+        progress?.(EncodingStep.CONVERT_TO_BGR, StepStatusCode.COMPLETED);
+        console.log('encode complete')
+
+        return this.bgr32f;
+    }
+
+    private populateDctMatrix() {
+        const iter = new DctCoefIterator(this.width, this.height, this.conf)
+        let next = iter.next()
+        while (next) {
+            const ch = this.channels.get(next.chIdx);
+            const byte = this.bitsIter.nextN(next.bitsCapacity) ?? 0;
+            const max = (1 << next.bitsCapacity) - 1;
+            ch.floatPtr(next.y, next.x)[0] = byte / max;
+            next = iter.next()
         }
-        if (this.y >= this.image.rows) {
-            this.x = 0;
-            this.y = 0;
-            this.ch += 1;
+        if (this.bitsIter.next() !== null) {
+            throw new Error("File is to large");
+        }
+    }
+
+    private applyTransforms() {
+        for (let i = 0; i < this.channels.size(); i++) {
+            const ch = this.channels.get(i);
+            const transform = i == 0 ? this.conf.lumaDctToImageTransform : this.conf.chromaDctToImageTransform;
+            ch.convertTo(ch, -1, transform.multiplier, transform.addition);
+            this.channels.set(i, ch);
+        }
+    }
+
+    private applyDct(dct: DctCalc) {
+        for (let chIdx = 0; chIdx < 3; chIdx++) {
+            const conf = chIdx == 0 ? this.conf.lumaConf : this.conf.chromaConf;
+            const ch = this.channels.get(chIdx);
+            if (conf.length != 0) {
+                const transformed = dct.idct8x8Mat(ch);
+                this.channels.get(chIdx).delete();
+                this.channels.set(chIdx, transformed);
+            }
         }
     }
 }
