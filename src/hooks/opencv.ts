@@ -1,9 +1,23 @@
-import { useState, useEffect } from 'react';
+import {useEffect, useState} from 'react';
+import cvModule from "@techstark/opencv-js";
 
 declare global {
   interface Window {
     cv: any;
   }
+}
+
+async function getOpenCv() {
+    let cv;
+    if (cvModule instanceof Promise) {
+        cv = await cvModule;
+    } else {
+        await new Promise<void>((resolve) => {
+            cvModule.onRuntimeInitialized = () => resolve();
+        });
+        cv = cvModule;
+    }
+    return { cv };
 }
 
 export const useOpenCV = () => {
@@ -12,32 +26,13 @@ export const useOpenCV = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadOpenCV = () => {
-      if (window.cv) {
-        setCv(window.cv);
+      getOpenCv().then((cv) => {
+        setCv(cv.cv);
         setIsLoading(false);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://docs.opencv.org/4.12.0/opencv.js';
-      script.async = true;
-      script.onload = () => {
-        // OpenCV.js loads asynchronously, we need to wait for it to be ready
-        (window as any).cv['onRuntimeInitialized'] = () => {
-          setCv(window.cv);
-          setIsLoading(false);
-        };
-      };
-      script.onerror = () => {
-        setError('Failed to load OpenCV.js');
+      }).catch((e) => {
+        setError(e.message);
         setIsLoading(false);
-      };
-
-      document.head.appendChild(script);
-    };
-
-    loadOpenCV();
+      })
   }, []);
 
   return { cv, isLoading, error };
