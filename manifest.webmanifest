@@ -1,0 +1,1 @@
+{"name":"JPEG Pack","short_name":"JPEG Pack","description":"Pack and unpack JPEG spritesheets in the browser","start_url":"/jpeg_pack/","display":"standalone","background_color":"#111827","theme_color":"#111827","lang":"en","scope":"/jpeg_pack/","icons":[{"src":"pwa-192x192.png","sizes":"192x192","type":"image/png"},{"src":"pwa-512x512.png","sizes":"512x512","type":"image/png"}]}
