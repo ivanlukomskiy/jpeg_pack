@@ -243,13 +243,14 @@ export function EncodeFile() {
 
   const progressTable = useMemo(() => {
     if (!progress) return null;
+    const hasErrors = Object.values(progress).some(step => step.code === StepStatusCode.FAILED);
     return (
-      <Flex direction={'column'} gap={'lg'}>
+      <Flex direction={'column'} gap={'lg'} style={{padding: '0 5px', width: '350px'}}>
         <Flex direction={'column'}>
           {Object.keys(progress).map(key => {
             const step = progress[key];
             return (
-              <Flex direction={'row'} key={key} style={{ width: '350px' }} gap={'xs'} justify={'space-between'}>
+              <Flex direction={'row'} key={key} gap={'xs'} justify={'space-between'}>
                 <Flex direction={'row'} gap={'xs'} style={{ flexShrink: 1 }}>
                   {getStepIcon(step.code)}
                   <Flex direction={'column'} style={{ textAlign: 'left', flexShrink: 1 }}>
@@ -271,11 +272,11 @@ export function EncodeFile() {
         <Flex direction={'column'} gap={'sm'}>
           {resultFileName}
           {resultFile && <Button onClick={download}>Download</Button>}
-          {resultFile && <Button onClick={reset}>Reset</Button>}
+          {(resultFile || hasErrors) && <Button onClick={reset}>Reset</Button>}
         </Flex>
       </Flex>
     );
-  }, [download, progress, resultFile, resultFileName]);
+  }, [download, progress, reset, resultFile, resultFileName]);
 
   return (
     <Flex direction={'row'} gap={120} justify={'center'} wrap={'wrap'}>

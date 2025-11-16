@@ -27,7 +27,7 @@ function App() {
           <Link to="/block">single block</Link>
         </Flex>
       </AppShell.Header>
-      <AppShell.Navbar  hiddenFrom="xs" style={{display: 'flex', flexDirection: 'column'}}>
+      <AppShell.Navbar  hiddenFrom="xs" style={{display: 'flex', flexDirection: 'column', maxWidth: '100%'}}>
         <Link to="/" style={{padding: 20}} onClick={toggle}>file</Link>
         <Link to="/benchmark" style={{padding: 20}} onClick={toggle}>benchmark</Link>
         <Link to="/block" style={{padding: 20}} onClick={toggle}>single block</Link>
