@@ -4,3 +4,4 @@ stuff left:
 - bundling for offline use
 - pwa?
 - loader while cv is not ready
+- description
