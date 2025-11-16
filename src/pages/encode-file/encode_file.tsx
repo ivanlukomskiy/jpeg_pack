@@ -199,7 +199,7 @@ export function EncodeFile() {
             <Typography>Capacity: {(capacityBytes / 1024).toFixed(2)} KB</Typography>
             <Typography>Effective: ~{(approxEffectiveCapacityBytes / 1024).toFixed(2)} KB</Typography>
             {/* <Typography>Used: {(usedBytes / 1024).toFixed(2)} KB</Typography> */}
-            <Typography>Bytes per 16x16 block: {dctStats.blockSizeBits}</Typography>
+            <Typography>Bytes per 16x16 block: {dctStats.blockSizeBits / 8}</Typography>
           </Flex>}
 
           {!res && <Flex direction={'column'} gap={'sm'} style={{alignItems: 'left', width: '200px'}}>
