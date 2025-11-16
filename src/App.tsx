@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router';
+import { HashRouter, Route, Routes, Link } from 'react-router-dom';
 import './App.css';
 import { OneBlockTest } from './pages/one_block_test/one_block_test';
 import { Benchmark } from './pages/benchmark/benchmark';
@@ -22,9 +22,9 @@ function App() {
       <AppShell.Header style={{ border: 0 }}>
         <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
         <Flex direction={'row'} gap={'xl'} style={{ padding: '5px 20px' }}>
-          <a href="/jpeg_pack/">file</a>
-          <a href="/jpeg_pack/benchmark">benchmark</a>
-          <a href="/jpeg_pack/block">single block</a>
+          <Link to="/">file</Link>
+          <Link to="/benchmark">benchmark</Link>
+          <Link to="/block">single block</Link>
         </Flex>
       </AppShell.Header>
       {/* <AppShell.Navbar>
@@ -32,9 +32,9 @@ function App() {
       </AppShell.Navbar> */}
       <AppShell.Main>
         <Routes>
-          <Route path="/jpeg_pack/" element={<EncodeFile />} />
-          <Route path="/jpeg_pack/benchmark" element={<Benchmark />} />
-          <Route path="/jpeg_pack/block" element={<OneBlockTest />} />
+          <Route path="/" element={<EncodeFile />} />
+          <Route path="/benchmark" element={<Benchmark />} />
+          <Route path="/block" element={<OneBlockTest />} />
         </Routes>
       </AppShell.Main>
     </AppShell>
