@@ -8,7 +8,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "VITE_APP_VERSION=$(date +%F)-$(git rev-parse --short HEAD) tsc --noEmit && vite build",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
     "preview": "vite preview",

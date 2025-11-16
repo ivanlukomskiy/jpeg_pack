@@ -233,13 +233,12 @@ export function EncodeFile() {
   }, [resultFile, resultFileName]);
 
   const reset = useCallback(() => {
-    if (!resultFile || !resultFileName) return;
     setResultFile(null);
     setResultFileName(null);
     setProgress(null);
     setEncFile(null);
     setDecFile(null);
-  }, [resultFile, resultFileName]);
+  }, []);
 
   const progressTable = useMemo(() => {
     if (!progress) return null;
