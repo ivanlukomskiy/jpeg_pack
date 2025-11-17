@@ -4,7 +4,7 @@ An app to convert any file into a JPEG image and back. Image might look somewhat
 
 ![sample](public/sample.jpeg)
 
-The resulting image is fairly resistant to re-encoding given that original dimensions are preserved.
+It is fairly resistant to re-encoding given that original dimensions are preserved.
 
 All operations are done on the client-side in the browser.
 
