@@ -1,6 +1,8 @@
 # what
 
-An app to convert any file into a JPEG image and back.
+An app to convert any file into a JPEG image and back. Image might look somewhat like this:
+
+![sample](public/sample.jpeg)
 
 The resulting image is fairly resistant to re-encoding given that original dimensions are preserved.
 
