@@ -15,6 +15,10 @@ The app is deployed to GitHub pages here:
 
 Being a progressive web app, it can be downloaded for offline use.
 
+# why
+
+To send arbitrary files via image-only channels.
+
 # how
 
 The app encodes data to an image in 8x8 chunks for each color channel independently.
