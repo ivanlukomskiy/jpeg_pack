@@ -1,13 +1,13 @@
 import { Button, Flex, NumberInput, Progress, Title, Typography } from '@mantine/core';
 import { MatRender } from '../../components/mat_render/MatRender';
-import { DefaultEncodingConf } from '../../processing/config';
+import { BenchmarkEncodingConf } from '../../processing/config';
 import {
   BitsIteratorImpl,
   buildErrSourceAcc,
   calculateErrorSources,
   compareBits,
   compareBytes,
-  randomUint8Arr,
+  randomBytesForBitLength,
 } from '../../processing/bits_iter';
 import { EncoderImpl } from '../../processing/encoder';
 import { DecoderImpl } from '../../processing/decoder';
@@ -15,7 +15,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
 import { BarChart } from '@mantine/charts';
 import { jpegRoundTripBgr32f } from '../../processing/utils.ts';
-import { buildDctConfStats, normalizeErrorSources } from '../../processing/blocks_iterator.ts';
+import { buildDctConfStats, countTotalBits, normalizeErrorSources } from '../../processing/blocks_iterator.ts';
 import { ErrTable } from '../../components/err_table/ErrTable.tsx';
 import { analyzeF32Matrix, type ChannelStats } from '../../processing/matrix_analysis.ts';
 import { MatChart } from '../../components/mat_chart/MatChart.tsx';
@@ -52,8 +52,10 @@ export function Benchmark() {
 
   const benchmark = useCallback(async () => {
     try {
-      const stats = buildDctConfStats(DefaultEncodingConf);
-      const size = stats.blockSizeBits * blocksPerAxis * blocksPerAxis;
+      const stats = buildDctConfStats(BenchmarkEncodingConf);
+      const width = 8 * blocksPerAxis;
+      const height = 8 * blocksPerAxis;
+      const sizeBits = countTotalBits(width, height, BenchmarkEncodingConf);
       const ycrcbStats: Record<string, ChannelStats> = {};
       const rgbStats: Record<string, ChannelStats> = {};
 
@@ -63,16 +65,16 @@ export function Benchmark() {
       setProgress(0);
       const acc = buildErrSourceAcc(stats);
       for (let i = 0; i < iterations; i++) {
-        const original = randomUint8Arr(size);
-        const iter = BitsIteratorImpl.fromBytes(original);
-        const encoder = new EncoderImpl(cvLib.cv, 16 * blocksPerAxis, 16 * blocksPerAxis, iter, DefaultEncodingConf);
+        const original = randomBytesForBitLength(sizeBits);
+        const iter = BitsIteratorImpl.fromBytes(original, sizeBits);
+        const encoder = new EncoderImpl(cvLib.cv, width, height, iter, BenchmarkEncodingConf);
         const res = encoder.encode(true);
         analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
         analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
 
         const { bgr32fDecoded } = await jpegRoundTripBgr32f(cvLib.cv, res, jpegQuality);
 
-        const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf);
+        const decoder = new DecoderImpl(cvLib.cv, BenchmarkEncodingConf);
         const decoded = decoder.decode(bgr32fDecoded, true);
         setRes(res);
         console.log('original', original);
@@ -80,7 +82,7 @@ export function Benchmark() {
         const bitErrorsCount = compareBits(original, decoded);
         const byteErrorsCount = compareBytes(original, decoded);
         calculateErrorSources(original, decoded, acc, stats);
-        bitRates.push(bitErrorsCount / size);
+        bitRates.push(bitErrorsCount / sizeBits);
         byteRates.push(byteErrorsCount / original.length);
         setBitErrRate([...bitRates]);
         setByteErrRate([...byteRates]);
@@ -89,10 +91,10 @@ export function Benchmark() {
       const normalized = normalizeErrorSources(
         acc,
         stats,
-        16 * blocksPerAxis,
-        16 * blocksPerAxis,
+        width,
+        height,
         iterations,
-        DefaultEncodingConf,
+        BenchmarkEncodingConf,
       );
       setErrByDctPos(normalized);
       setProgress(null);

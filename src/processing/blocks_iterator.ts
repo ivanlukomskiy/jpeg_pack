@@ -1,138 +1,82 @@
-import { isCalibrationMcu } from './calibration.ts';
+import { isCalibrationBlock } from './calibration.ts';
 import type { DctCoefConf, EncodingConf } from './config.ts';
+import { usesCalibration } from './config.ts';
+
+export const BLOCK_SIZE = 8;
 
 export const BlockType = {
   LUMA: 'luma',
-  CR: 'chroma_red',
-  CB: 'chroma_blue',
 } as const;
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
-interface BlockGroup {
-  offsetX: number;
-  offsetY: number;
-  blockType: BlockType;
-  chIdx: number;
-  confs: DctCoefConf[];
-}
-
-function buildBlockGroups(conf: EncodingConf): BlockGroup[] {
-  return [
-    { offsetX: 0, offsetY: 0, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
-    { offsetX: 8, offsetY: 0, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
-    { offsetX: 0, offsetY: 8, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
-    { offsetX: 8, offsetY: 8, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
-    { offsetX: 0, offsetY: 0, blockType: BlockType.CR, chIdx: 1, confs: conf.chromaConf },
-    { offsetX: 0, offsetY: 0, blockType: BlockType.CB, chIdx: 2, confs: conf.chromaConf },
-  ];
-}
-
-function groupFits(groupIndex: number, xBase: number, yBase: number, width: number, height: number): boolean {
-  const group = groupIndex;
-  if (group === 0) return xBase + 8 <= width && yBase + 8 <= height;
-  if (group === 1) return xBase + 16 <= width && yBase + 8 <= height;
-  if (group === 2) return xBase + 8 <= width && yBase + 16 <= height;
-  if (group === 3 || group === 4 || group === 5) return xBase + 16 <= width && yBase + 16 <= height;
-  return false;
-}
-
-export function getMcuGridSize(width: number, height: number) {
+export function getBlockGridSize(width: number, height: number) {
   return {
-    mcuCols: Math.ceil(width / 16),
-    mcuRows: Math.ceil(height / 16),
-  };
-}
-
-export function getActiveGroupIndices(xBase: number, yBase: number, width: number, height: number): number[] {
-  const indices: number[] = [];
-  for (let i = 0; i < 6; i++) {
-    if (groupFits(i, xBase, yBase, width, height)) {
-      indices.push(i);
-    }
-  }
-  return indices;
-}
-
-export function getChromaPlaneSize(width: number, height: number) {
-  return {
-    cols: Math.ceil(width / 16) * 8,
-    rows: Math.ceil(height / 16) * 8,
+    blockCols: Math.ceil(width / BLOCK_SIZE),
+    blockRows: Math.ceil(height / BLOCK_SIZE),
   };
 }
 
 export interface DctCoefPoint {
   x: number;
   y: number;
-  chIdx: number;
   confX: number;
   confY: number;
   conf: DctCoefConf;
   bitsCapacity: number;
-  blockType: BlockType;
 }
 
 export class DctCoefIterator {
-  private mcuIndex = -1;
-  private groupIdx = 0;
+  private blockIndex = -1;
   private confIdx = 0;
-  private activeGroupIndices: number[] = [];
-  private currentGroupConfs: DctCoefConf[] = [];
-  private readonly width: number;
-  private readonly height: number;
-  private readonly blockGroups: BlockGroup[];
-  private readonly mcuCols: number;
-  private readonly mcuRows: number;
+  private readonly confs: DctCoefConf[];
+  private readonly blockCols: number;
+  private readonly blockRows: number;
+  private readonly skipCalibrationBlocks: boolean;
 
   constructor(width: number, height: number, conf: EncodingConf) {
-    this.width = width;
-    this.height = height;
-    this.blockGroups = buildBlockGroups(conf);
-    const grid = getMcuGridSize(width, height);
-    this.mcuCols = grid.mcuCols;
-    this.mcuRows = grid.mcuRows;
+    this.confs = conf.conf;
+    this.skipCalibrationBlocks = !usesCalibration(conf);
+    const grid = getBlockGridSize(width, height);
+    this.blockCols = grid.blockCols;
+    this.blockRows = grid.blockRows;
   }
 
   public next(): DctCoefPoint | null {
     while (true) {
-      if (this.confIdx < this.currentGroupConfs.length) {
-        const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
-        const conf = this.currentGroupConfs[this.confIdx++];
-        const xBase = (this.mcuIndex % this.mcuCols) * 16;
-        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
-        const downsampleCoef = group.blockType == BlockType.LUMA ? 1 : 2;
-        return {
-          x: xBase / downsampleCoef + group.offsetX + conf.x,
-          y: yBase / downsampleCoef + group.offsetY + conf.y,
-          conf,
-          confX: conf.x,
-          confY: conf.y,
-          chIdx: group.chIdx,
-          bitsCapacity: conf.bitsCapacity,
-          blockType: group.blockType,
-        };
-      }
-
-      this.groupIdx++;
-      this.confIdx = 0;
-
-      while (this.groupIdx >= this.activeGroupIndices.length) {
+      if (this.confIdx >= this.confs.length) {
+        this.confIdx = 0;
         do {
-          this.mcuIndex++;
-          this.groupIdx = 0;
-
-          if (this.mcuIndex >= this.mcuCols * this.mcuRows) {
+          this.blockIndex++;
+          if (this.blockIndex >= this.blockCols * this.blockRows) {
             return null;
           }
-        } while (isCalibrationMcu(this.mcuIndex));
-
-        const xBase = (this.mcuIndex % this.mcuCols) * 16;
-        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
-        this.activeGroupIndices = getActiveGroupIndices(xBase, yBase, this.width, this.height);
+        } while (!this.skipCalibrationBlocks && isCalibrationBlock(this.blockIndex, this.blockCols));
+        continue;
       }
 
-      const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
-      this.currentGroupConfs = group.confs;
+      if (this.blockIndex < 0) {
+        do {
+          this.blockIndex++;
+          if (this.blockIndex >= this.blockCols * this.blockRows) {
+            return null;
+          }
+        } while (!this.skipCalibrationBlocks && isCalibrationBlock(this.blockIndex, this.blockCols));
+      }
+
+      const conf = this.confs[this.confIdx++];
+      const blockCol = this.blockIndex % this.blockCols;
+      const blockRow = Math.floor(this.blockIndex / this.blockCols);
+      const xBase = blockCol * BLOCK_SIZE;
+      const yBase = blockRow * BLOCK_SIZE;
+      return {
+        x: xBase + conf.x,
+        y: yBase + conf.y,
+        conf,
+        confX: conf.x,
+        confY: conf.y,
+        bitsCapacity: conf.bitsCapacity,
+      };
     }
   }
 }
@@ -143,19 +87,32 @@ export interface DctConfStats {
   blockSizeBits: number;
 }
 
-function blockName(type: BlockType, confX: number, confY: number) {
-  return `${type}_${confX}_${confY}`;
+function blockName(confX: number, confY: number) {
+  return `${BlockType.LUMA}_${confX}_${confY}`;
+}
+
+function iterBlockCoefPoints(conf: EncodingConf): DctCoefPoint[] {
+  return conf.conf.map(c => ({
+    x: c.x,
+    y: c.y,
+    conf: c,
+    confX: c.x,
+    confY: c.y,
+    bitsCapacity: c.bitsCapacity,
+  }));
+}
+
+export function getBlockDataBits(conf: EncodingConf): number {
+  return iterBlockCoefPoints(conf).reduce((sum, point) => sum + point.bitsCapacity, 0);
 }
 
 export function buildDctConfStats(conf: EncodingConf): DctConfStats {
-  const iter = new DctCoefIterator(16, 16, conf);
   const offsetToName: Record<number, string> = {};
   const nameToBitsInBlock: Record<string, number> = {};
   let offset = 0;
   let blockSize = 0;
-  let next = iter.next();
-  while (next) {
-    const name = blockName(next.blockType, next.confX, next.confY);
+  for (const next of iterBlockCoefPoints(conf)) {
+    const name = blockName(next.confX, next.confY);
     for (let i = 0; i < next.bitsCapacity; i++) {
       offsetToName[offset] = name;
       offset++;
@@ -163,7 +120,6 @@ export function buildDctConfStats(conf: EncodingConf): DctConfStats {
     }
     if (!nameToBitsInBlock[name]) nameToBitsInBlock[name] = 0;
     nameToBitsInBlock[name] += next.bitsCapacity;
-    next = iter.next();
   }
   return { offsetToName, blockSizeBits: blockSize, nameToBitsInBlock };
 }
@@ -195,7 +151,7 @@ export function countBlocksByName(width: number, height: number, conf: EncodingC
   const iter = new DctCoefIterator(width, height, conf);
   let next = iter.next();
   while (next) {
-    const name = blockName(next.blockType, next.confX, next.confY);
+    const name = blockName(next.confX, next.confY);
     counts[name] = (counts[name] ?? 0) + 1;
     next = iter.next();
   }

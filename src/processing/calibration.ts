@@ -6,13 +6,14 @@ export const CALIBRATION_BLOCK_OFFSETS = [
   { x: 0, y: 8 },
   { x: 8, y: 8 },
 ];
-export const CALIBRATION_MCU_INDEX = 0;
 export const CALIBRATION_NEUTRAL_CHROMA = 0.5;
 const BLOCK_SIZE = 8;
 const MIN_SCALE = 1e-4;
 
-export function isCalibrationMcu(mcuIndex: number): boolean {
-  return mcuIndex === CALIBRATION_MCU_INDEX;
+export function isCalibrationBlock(blockIndex: number, blockCols: number): boolean {
+  const blockCol = blockIndex % blockCols;
+  const blockRow = Math.floor(blockIndex / blockCols);
+  return blockCol < 2 && blockRow < 2;
 }
 
 function fillBlock(mat: any, x0: number, y0: number, value: number) {
@@ -23,13 +24,26 @@ function fillBlock(mat: any, x0: number, y0: number, value: number) {
   }
 }
 
-export function writeCalibrationBlocks(lumaMat: any, chromaCrMat: any, chromaCbMat: any) {
+export function writeCalibrationBlocks(lumaMat: any) {
   for (let i = 0; i < CALIBRATION_BLOCK_COUNT; i++) {
     const { x, y } = CALIBRATION_BLOCK_OFFSETS[i];
     fillBlock(lumaMat, x, y, CALIBRATION_LUMA_VALUES[i]);
   }
-  fillBlock(chromaCrMat, 0, 0, CALIBRATION_NEUTRAL_CHROMA);
-  fillBlock(chromaCbMat, 0, 0, CALIBRATION_NEUTRAL_CHROMA);
+}
+
+export function buildYCrCbFromLuma(cv: any, lumaMat: any) {
+  const chromaCr = new cv.Mat(lumaMat.rows, lumaMat.cols, cv.CV_32FC1, new cv.Scalar(CALIBRATION_NEUTRAL_CHROMA));
+  const chromaCb = new cv.Mat(lumaMat.rows, lumaMat.cols, cv.CV_32FC1, new cv.Scalar(CALIBRATION_NEUTRAL_CHROMA));
+  const channels = new cv.MatVector();
+  channels.push_back(lumaMat);
+  channels.push_back(chromaCr);
+  channels.push_back(chromaCb);
+  const ycrcb = new cv.Mat();
+  cv.merge(channels, ycrcb);
+  channels.delete();
+  chromaCr.delete();
+  chromaCb.delete();
+  return ycrcb;
 }
 
 function averageBlockY(ycrcbMat: any, x0: number, y0: number): number {

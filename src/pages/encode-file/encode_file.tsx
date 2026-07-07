@@ -219,7 +219,7 @@ export function EncodeFile() {
   const details = useMemo(() => {
     return (
       <Flex direction={'column'} gap={'sm'} style={{ padding: '5px' }}>
-        {detailsLine('16x16 block', (dctStats.blockSizeBits / 8).toString() + ' bytes')}
+        {detailsLine('8x8 block', (dctStats.blockSizeBits / 8).toString() + ' bytes')}
         {detailsLine('capacity', (capacityBytes / 1024).toFixed(2) + ' KB')}
         {detailsLine(
           'effective',
