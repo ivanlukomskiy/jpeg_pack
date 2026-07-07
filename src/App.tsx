@@ -5,6 +5,7 @@ import { Benchmark } from './pages/benchmark/benchmark';
 import { AppShell, Burger, Flex, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { EncodeFile } from './pages/encode-file/encode_file';
+import { Calibrate } from './pages/calibrate/calibrate';
 
 function App() {
   const [opened, { toggle }] = useDisclosure();
@@ -31,6 +32,7 @@ function App() {
         >
           <Flex direction={'row'} gap={'xl'}>
             <Link to="/">file</Link>
+            <Link to="/calibrate">calibrate</Link>
             <Link to="/benchmark">benchmark</Link>
             <Link to="/block">single block</Link>
           </Flex>
@@ -51,6 +53,9 @@ function App() {
         <Link to="/" style={{ padding: 16 }} onClick={toggle}>
           file
         </Link>
+        <Link to="/calibrate" style={{ padding: 16 }} onClick={toggle}>
+          calibrate
+        </Link>
         <Link to="/benchmark" style={{ padding: 16 }} onClick={toggle}>
           benchmark
         </Link>
@@ -65,6 +70,7 @@ function App() {
       <AppShell.Main>
         <Routes>
           <Route path="/" element={<EncodeFile />} />
+          <Route path="/calibrate" element={<Calibrate />} />
           <Route path="/benchmark" element={<Benchmark />} />
           <Route path="/block" element={<OneBlockTest />} />
         </Routes>

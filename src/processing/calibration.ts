@@ -82,3 +82,25 @@ export function applyLumaCorrection(ycrcbMat: any, scale: number, offset: number
     }
   }
 }
+
+export interface CalibrateResult {
+  bgr32f: any;
+  scale: number;
+  offset: number;
+  measured: number[];
+}
+
+export function calibrateBgr32f(cv: any, bgr32f: any): CalibrateResult {
+  if (bgr32f.rows < 16 || bgr32f.cols < 16) {
+    throw new Error('image must be at least 16x16 for calibration blocks');
+  }
+  const ycrcb = new cv.Mat();
+  cv.cvtColor(bgr32f, ycrcb, cv.COLOR_BGR2YCrCb);
+  const measured = readCalibrationLuma(ycrcb);
+  const { scale, offset } = fitLinearCorrection(CALIBRATION_LUMA_VALUES, measured);
+  applyLumaCorrection(ycrcb, scale, offset);
+  const result = new cv.Mat();
+  cv.cvtColor(ycrcb, result, cv.COLOR_YCrCb2BGR);
+  ycrcb.delete();
+  return { bgr32f: result, scale, offset, measured };
+}
