@@ -2,6 +2,12 @@ import type { EncodingConf } from './config';
 import { DctCalc } from './dct';
 import { Uint8ArrayBuilder } from './uint_array_builder';
 import { DctCoefIterator, getChromaPlaneSize } from './blocks_iterator.ts';
+import {
+  applyLumaCorrection,
+  CALIBRATION_LUMA_VALUES,
+  fitLinearCorrection,
+  readCalibrationLuma,
+} from './calibration.ts';
 import { DecodingStep, StepStatusCode } from './progress.ts';
 
 export interface Decoder {
@@ -48,6 +54,9 @@ export class DecoderImpl implements Decoder {
 
     this.ycrcb = new this.cv.Mat();
     this.cv.cvtColor(bgr32f, this.ycrcb, this.cv.COLOR_BGR2YCrCb);
+    const measured = readCalibrationLuma(this.ycrcb);
+    const { scale, offset } = fitLinearCorrection(CALIBRATION_LUMA_VALUES, measured);
+    applyLumaCorrection(this.ycrcb, scale, offset);
     this.image = this.ycrcb;
     progress?.(DecodingStep.CONVERT_TO_YCRCB, StepStatusCode.COMPLETED);
 

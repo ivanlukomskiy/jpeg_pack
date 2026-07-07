@@ -2,6 +2,7 @@ import type { BitsIterator } from './bits_iter';
 import type { EncodingConf } from './config';
 import { DctCalc } from './dct';
 import { DctCoefIterator, getChromaPlaneSize } from './blocks_iterator.ts';
+import { writeCalibrationBlocks } from './calibration.ts';
 import { EncodingStep, StepStatusCode } from './progress.ts';
 
 export interface Encoder {
@@ -88,6 +89,7 @@ export class EncoderImpl implements Encoder {
 
     progress?.(EncodingStep.NORMALIZE, StepStatusCode.IN_PROGRESS);
     this.applyTransforms();
+    writeCalibrationBlocks(this.channels.get(0), this.channels.get(1), this.channels.get(2));
     const transformed = this.snapshot();
     if (debug) this.transformed = transformed;
     progress?.(EncodingStep.NORMALIZE, StepStatusCode.COMPLETED);
