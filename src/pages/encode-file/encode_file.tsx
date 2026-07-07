@@ -2,7 +2,7 @@ import { Button, FileButton, Flex, Loader, NumberInput, Text, Title } from '@man
 import { DefaultEncodingConf } from '../../processing/config';
 import { useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
-import { getApproxEffectiveCapacityBytes } from '../../models/protocol';
+import { getApproxEffectiveCapacityBytes, getFullByteCapacity } from '../../models/protocol';
 import {
   decodeJpeg,
   deserializeMat,
@@ -193,8 +193,8 @@ export function EncodeFile() {
   }, []);
 
   const capacityBytes = useMemo(() => {
-    return ((((w / 16) * h) / 16) * dctStats.blockSizeBits) / 8;
-  }, [w, h, dctStats.blockSizeBits]);
+    return getFullByteCapacity(w, h);
+  }, [w, h]);
 
   const approxEffectiveCapacityBytes = useMemo(() => {
     return getApproxEffectiveCapacityBytes(capacityBytes);

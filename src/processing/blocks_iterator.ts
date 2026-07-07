@@ -1,10 +1,12 @@
 import type { DctCoefConf, EncodingConf } from './config.ts';
 
-export enum BlockType {
-  LUMA = 'luma',
-  CR = 'chroma_red',
-  CB = 'chroma_blue',
-}
+export const BlockType = {
+  LUMA: 'luma',
+  CR: 'chroma_red',
+  CB: 'chroma_blue',
+} as const;
+
+export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
 interface EncodingStage {
   offsetX: number;

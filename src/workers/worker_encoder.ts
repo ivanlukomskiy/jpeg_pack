@@ -2,7 +2,7 @@ import { getOpenCv } from '../hooks/opencv.ts';
 import { EncoderImpl } from '../processing/encoder.ts';
 import { DefaultEncodingConf } from '../processing/config.ts';
 import { BitsIteratorImpl } from '../processing/bits_iter.ts';
-import { encodeFile } from '../models/protocol.ts';
+import { encodeFile, getFullByteCapacity } from '../models/protocol.ts';
 import { fileToUint8Array, serializeMat } from '../processing/utils.ts';
 import {
   createEncodingProgressTracker,
@@ -41,7 +41,8 @@ self.onmessage = async function (event) {
       reportDone(tracker);
 
       reportStarted(EncodingStep.PREPARE_FILE, tracker);
-      const encodedFileData = await encodeFile(encFile.name, fileRawData);
+      const rsByteCapacity = getFullByteCapacity(w, h);
+      const encodedFileData = await encodeFile(encFile.name, fileRawData, rsByteCapacity);
       const iterator = BitsIteratorImpl.fromBytes(encodedFileData);
 
       const encoder = new EncoderImpl(cv, w, h, iterator, DefaultEncodingConf);
