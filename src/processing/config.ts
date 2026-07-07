@@ -12,6 +12,11 @@ export interface DctToImageTransform {
 export interface EncodingConf {
   conf: DctCoefConf[];
   dctToImageTransform: DctToImageTransform;
+  useCalibration?: boolean;
+}
+
+export function usesCalibration(conf: EncodingConf): boolean {
+  return conf.useCalibration !== false;
 }
 
 export const DctConfs: DctCoefConf[] = [
@@ -57,4 +62,10 @@ export const DefaultEncodingConf: EncodingConf = {
     multiplier: 0.21,
     addition: 0.27,
   },
+  useCalibration: true,
+};
+
+export const BenchmarkEncodingConf: EncodingConf = {
+  ...DefaultEncodingConf,
+  useCalibration: false,
 };

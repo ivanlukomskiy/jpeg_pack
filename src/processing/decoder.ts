@@ -1,4 +1,5 @@
 import type { EncodingConf } from './config';
+import { usesCalibration } from './config';
 import { DctCalc } from './dct';
 import { Uint8ArrayBuilder } from './uint_array_builder';
 import { DctCoefIterator, countTotalBits } from './blocks_iterator.ts';
@@ -46,9 +47,11 @@ export class DecoderImpl implements Decoder {
 
     this.ycrcb = new this.cv.Mat();
     this.cv.cvtColor(bgr32f, this.ycrcb, this.cv.COLOR_BGR2YCrCb);
-    const measured = readCalibrationLuma(this.ycrcb);
-    const { scale, offset } = fitLinearCorrection(CALIBRATION_LUMA_VALUES, measured);
-    applyLumaCorrection(this.ycrcb, scale, offset);
+    if (usesCalibration(this.conf)) {
+      const measured = readCalibrationLuma(this.ycrcb);
+      const { scale, offset } = fitLinearCorrection(CALIBRATION_LUMA_VALUES, measured);
+      applyLumaCorrection(this.ycrcb, scale, offset);
+    }
     progress?.(DecodingStep.CONVERT_TO_YCRCB, StepStatusCode.COMPLETED);
 
     progress?.(DecodingStep.EXTRACT_CHANNELS, StepStatusCode.IN_PROGRESS);

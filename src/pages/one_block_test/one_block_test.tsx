@@ -97,11 +97,10 @@ export function OneBlockTest() {
         setYCrCbStats(ycrcbStats);
 
         setMat({
-          // prime: encoder.prime,
-          dataMatrix: encoder.dataMatrix.clone(),
-          ycrcb: encoder.ycrcb.clone(),
-          transformed: encoder.transformed.clone(),
-          bgr32f: encoder.bgr32f.clone(),
+          ...(encoder.dataMatrix && { dataMatrix: encoder.dataMatrix.clone() }),
+          ...(encoder.ycrcb && { ycrcb: encoder.ycrcb.clone() }),
+          ...(encoder.transformed && { transformed: encoder.transformed.clone() }),
+          ...(encoder.bgr32f && { bgr32f: encoder.bgr32f.clone() }),
           res: bgr32f.clone(),
         });
         return bgr32f;

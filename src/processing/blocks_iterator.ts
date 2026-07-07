@@ -1,5 +1,6 @@
 import { isCalibrationBlock } from './calibration.ts';
 import type { DctCoefConf, EncodingConf } from './config.ts';
+import { usesCalibration } from './config.ts';
 
 export const BLOCK_SIZE = 8;
 
@@ -31,9 +32,11 @@ export class DctCoefIterator {
   private readonly confs: DctCoefConf[];
   private readonly blockCols: number;
   private readonly blockRows: number;
+  private readonly skipCalibrationBlocks: boolean;
 
   constructor(width: number, height: number, conf: EncodingConf) {
     this.confs = conf.conf;
+    this.skipCalibrationBlocks = !usesCalibration(conf);
     const grid = getBlockGridSize(width, height);
     this.blockCols = grid.blockCols;
     this.blockRows = grid.blockRows;
@@ -48,7 +51,7 @@ export class DctCoefIterator {
           if (this.blockIndex >= this.blockCols * this.blockRows) {
             return null;
           }
-        } while (isCalibrationBlock(this.blockIndex, this.blockCols));
+        } while (!this.skipCalibrationBlocks && isCalibrationBlock(this.blockIndex, this.blockCols));
         continue;
       }
 
@@ -58,7 +61,7 @@ export class DctCoefIterator {
           if (this.blockIndex >= this.blockCols * this.blockRows) {
             return null;
           }
-        } while (isCalibrationBlock(this.blockIndex, this.blockCols));
+        } while (!this.skipCalibrationBlocks && isCalibrationBlock(this.blockIndex, this.blockCols));
       }
 
       const conf = this.confs[this.confIdx++];

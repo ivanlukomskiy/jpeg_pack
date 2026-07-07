@@ -1,5 +1,6 @@
 import type { BitsIterator } from './bits_iter';
 import type { EncodingConf } from './config';
+import { usesCalibration } from './config';
 import { DctCalc } from './dct';
 import { DctCoefIterator } from './blocks_iterator.ts';
 import { buildYCrCbFromLuma, writeCalibrationBlocks } from './calibration.ts';
@@ -37,6 +38,7 @@ export class EncoderImpl implements Encoder {
   public encode(debug: boolean = false, progress?: (step: number, state: number) => void): any {
     progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.IN_PROGRESS);
     this.populateDctMatrix();
+    if (debug) this.dataMatrix = this.lumaMat.clone();
     progress?.(EncodingStep.POPULATE_DCT, StepStatusCode.COMPLETED);
 
     progress?.(EncodingStep.DCT, StepStatusCode.IN_PROGRESS);
@@ -49,7 +51,9 @@ export class EncoderImpl implements Encoder {
 
     progress?.(EncodingStep.NORMALIZE, StepStatusCode.IN_PROGRESS);
     this.applyTransforms();
-    writeCalibrationBlocks(this.lumaMat);
+    if (usesCalibration(this.conf)) {
+      writeCalibrationBlocks(this.lumaMat);
+    }
     const transformed = buildYCrCbFromLuma(this.cv, this.lumaMat);
     if (debug) this.transformed = transformed.clone();
     progress?.(EncodingStep.NORMALIZE, StepStatusCode.COMPLETED);
