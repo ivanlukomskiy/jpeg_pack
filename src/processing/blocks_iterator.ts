@@ -1,3 +1,4 @@
+import { isCalibrationMcu } from './calibration.ts';
 import type { DctCoefConf, EncodingConf } from './config.ts';
 
 export const BlockType = {
@@ -116,12 +117,14 @@ export class DctCoefIterator {
       this.confIdx = 0;
 
       while (this.groupIdx >= this.activeGroupIndices.length) {
-        this.mcuIndex++;
-        this.groupIdx = 0;
+        do {
+          this.mcuIndex++;
+          this.groupIdx = 0;
 
-        if (this.mcuIndex >= this.mcuCols * this.mcuRows) {
-          return null;
-        }
+          if (this.mcuIndex >= this.mcuCols * this.mcuRows) {
+            return null;
+          }
+        } while (isCalibrationMcu(this.mcuIndex));
 
         const xBase = (this.mcuIndex % this.mcuCols) * 16;
         const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;

@@ -86,7 +86,7 @@ export function OneBlockTest() {
         } else {
           iter = BitsIteratorImpl.random(randInputSize);
         }
-        const encoder = new EncoderImpl(cvLib.cv, 16, 16, iter, DefaultEncodingConf);
+        const encoder = new EncoderImpl(cvLib.cv, 32, 32, iter, DefaultEncodingConf);
         const bgr32f = encoder.encode(true);
         setRes(bgr32f);
         const ycrcbStats: Record<string, ChannelStats> = {};
