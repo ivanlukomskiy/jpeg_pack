@@ -2,10 +2,7 @@ import { Button, FileButton, Flex, Loader, NumberInput, Text, Title } from '@man
 import { DefaultEncodingConf } from '../../processing/config';
 import { useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
-import { encodeFile, getApproxEffectiveCapacityBytes, getFullByteCapacity } from '../../models/protocol';
-import { compareBits, compareBytes } from '../../processing/bits_iter';
-import { DecoderImpl } from '../../processing/decoder';
-import { decodeErrorCorrection } from '../../processing/reed_solomon/adapter';
+import { getApproxEffectiveCapacityBytes, getFullByteCapacity } from '../../models/protocol';
 import {
   decodeJpeg,
   deserializeMat,
@@ -76,7 +73,6 @@ export function EncodeFile() {
   const [progress, setProgress] = useState<Record<string, StepStatus> | null>();
   const [resultFile, setResultFile] = useState<Uint8Array | null>(null);
   const [resultFileName, setResultFileName] = useState<string | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
 
   const dctStats = useMemo(() => {
     return buildDctConfStats(DefaultEncodingConf);
@@ -244,72 +240,6 @@ export function EncodeFile() {
     setDecFile(null);
   }, []);
 
-  const test = useCallback(async () => {
-    if (!resultFile || !encFile || !cvLib.cv) return;
-    setIsTesting(true);
-    try {
-      const fileRawData = await fileToUint8Array(encFile);
-      const rsByteCapacity = getFullByteCapacity(w, h);
-      const expected = await encodeFile(encFile.name, fileRawData, rsByteCapacity);
-
-      const { bgr32fDecoded } = await decodeJpeg(cvLib.cv, resultFile);
-      const decoder = new DecoderImpl(cvLib.cv, DefaultEncodingConf);
-      const fullDecoded = decoder.decode(bgr32fDecoded);
-      const decoded = fullDecoded.subarray(0, expected.length);
-
-      const totalBits = expected.length * 8;
-      const bitErrors = compareBits(expected, decoded);
-      const byteErrors = compareBytes(expected, decoded);
-
-      console.log(
-        `test: bit errors = ${bitErrors} / ${totalBits} (${((bitErrors / totalBits) * 100).toFixed(2)}%)`,
-      );
-      console.log(
-        `test: byte errors = ${byteErrors} / ${expected.length} (${((byteErrors / expected.length) * 100).toFixed(2)}%)`,
-      );
-
-      const numBlocks = expected.length / 255;
-      const blockErrors: number[] = [];
-      for (let b = 0; b < numBlocks; b++) {
-        let errs = 0;
-        for (let j = 0; j < 255; j++) {
-          const idx = b * 255 + j;
-          if (expected[idx] !== decoded[idx]) errs++;
-        }
-        blockErrors.push(errs);
-      }
-      const maxBlockErrors = Math.max(...blockErrors);
-      const overLimit = blockErrors.filter(e => e > 16).length;
-      console.log(
-        `test: RS blocks = ${numBlocks}, max byte errors in one block = ${maxBlockErrors} (limit 16), blocks over limit = ${overLimit}`,
-      );
-      if (overLimit > 0) {
-        console.log(
-          'test: blocks over RS limit:',
-          blockErrors.map((e, i) => (e > 16 ? `${i}:${e}` : null)).filter(Boolean).join(', '),
-        );
-      }
-
-      try {
-        decodeErrorCorrection(decoded);
-        console.log('test: RS decode on payload bytes only — OK');
-      } catch (e) {
-        console.log('test: RS decode on payload bytes only — FAIL:', (e as Error).message);
-      }
-
-      try {
-        decodeErrorCorrection(fullDecoded);
-        console.log('test: RS decode on full image extract — OK');
-      } catch (e) {
-        console.log('test: RS decode on full image extract — FAIL:', (e as Error).message);
-      }
-    } catch (e) {
-      console.error('test failed:', e);
-    } finally {
-      setIsTesting(false);
-    }
-  }, [resultFile, encFile, cvLib.cv, w, h]);
-
   const progressTable = useMemo(() => {
     if (!progress) return null;
     const hasErrors = Object.values(progress).some(step => step.code === StepStatusCode.FAILED);
@@ -341,16 +271,11 @@ export function EncodeFile() {
         <Flex direction={'column'} gap={'sm'}>
           {resultFileName}
           {resultFile && <Button onClick={download}>Download</Button>}
-          {resultFile && encFile && (
-            <Button onClick={test} disabled={isTesting}>
-              Test
-            </Button>
-          )}
           {(resultFile || hasErrors) && <Button onClick={reset}>Reset</Button>}
         </Flex>
       </Flex>
     );
-  }, [download, encFile, isTesting, progress, reset, resultFile, resultFileName, test]);
+  }, [download, progress, reset, resultFile, resultFileName]);
 
   return (
     <Flex direction={'row'} gap={120} justify={'center'} wrap={'wrap'}>
