@@ -1,6 +1,6 @@
 import { getOpenCv } from '../hooks/opencv.ts';
 import { DefaultEncodingConf } from '../processing/config.ts';
-import { decodeFile } from '../models/protocol.ts';
+import { decodeFile, getFullByteCapacity } from '../models/protocol.ts';
 import { deserializeMat, serializeMat } from '../processing/utils.ts';
 import { DecoderImpl } from '../processing/decoder.ts';
 import {
@@ -54,7 +54,8 @@ self.onmessage = async function (event) {
     });
 
     reportStarted(DecodingStep.DECODE_FILE, tracker);
-    const res = await decodeFile(decoded);
+    const rsByteCapacity = getFullByteCapacity(bgr32fDecoded.cols, bgr32fDecoded.rows);
+    const res = await decodeFile(decoded.subarray(0, rsByteCapacity));
     const serialized = serializeMat(bgr32fDecoded);
     reportDone(tracker);
 

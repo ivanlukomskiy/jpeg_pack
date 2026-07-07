@@ -5,8 +5,21 @@
 // 5. data length
 // 6. data symbols
 
+import { buildDctConfStats } from '../processing/blocks_iterator.ts';
+import type { EncodingConf } from '../processing/config';
+import { DefaultEncodingConf } from '../processing/config';
 import { addErrorCorrection, BlockSize, decodeErrorCorrection } from '../processing/reed_solomon/adapter';
 import { byteArrayToInt, type FileResult, intToByteArray, joinUint8Arrays } from '../processing/utils';
+
+export function getFullByteCapacity(
+  width: number,
+  height: number,
+  conf: EncodingConf = DefaultEncodingConf,
+): number {
+  const stats = buildDctConfStats(conf);
+  const capacityBytes = (((width / 16) * height) / 16) * (stats.blockSizeBits / 8);
+  return Math.floor(capacityBytes / 255) * 255;
+}
 
 const TYPE_FILE = 1;
 
@@ -16,7 +29,7 @@ async function get8ByteHash(data: Uint8Array) {
   return hashArray.slice(0, 8);
 }
 
-export async function encodeFile(filename: string, data: Uint8Array) {
+export async function encodeFile(filename: string, data: Uint8Array, rsByteCapacity?: number) {
   const type = new Uint8Array([TYPE_FILE]);
   const textEnc = new TextEncoder();
   const filenameBytes = textEnc.encode(filename);
@@ -25,8 +38,25 @@ export async function encodeFile(filename: string, data: Uint8Array) {
   const dataLength = intToByteArray(data.length);
   const payloadWithoutHash = joinUint8Arrays([type, filenameSize, filenameBytes, dataLength, data]);
   const hash = await get8ByteHash(payloadWithoutHash);
-  const payloadWithHash = joinUint8Arrays([hash, payloadWithoutHash]);
-  return addErrorCorrection(payloadWithHash);
+  let payloadWithHash = joinUint8Arrays([hash, payloadWithoutHash]);
+
+  if (rsByteCapacity !== undefined) {
+    const targetPreRsBytes = (rsByteCapacity / 255) * BlockSize;
+    if (payloadWithHash.length > targetPreRsBytes) {
+      throw new Error('payload too large for image RS capacity');
+    }
+    if (payloadWithHash.length < targetPreRsBytes) {
+      const padded = new Uint8Array(targetPreRsBytes);
+      padded.set(payloadWithHash);
+      payloadWithHash = padded;
+    }
+  }
+
+  const rsEncoded = addErrorCorrection(payloadWithHash);
+  if (rsByteCapacity !== undefined && rsEncoded.length !== rsByteCapacity) {
+    throw new Error(`RS encoded length ${rsEncoded.length} does not match capacity ${rsByteCapacity}`);
+  }
+  return rsEncoded;
 }
 
 export function getApproxEffectiveCapacityBytes(fullSizeBytes: number): number {
