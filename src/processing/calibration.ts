@@ -23,13 +23,26 @@ function fillBlock(mat: any, x0: number, y0: number, value: number) {
   }
 }
 
-export function writeCalibrationBlocks(lumaMat: any, chromaCrMat: any, chromaCbMat: any) {
+export function writeCalibrationBlocks(lumaMat: any) {
   for (let i = 0; i < CALIBRATION_BLOCK_COUNT; i++) {
     const { x, y } = CALIBRATION_BLOCK_OFFSETS[i];
     fillBlock(lumaMat, x, y, CALIBRATION_LUMA_VALUES[i]);
   }
-  fillBlock(chromaCrMat, 0, 0, CALIBRATION_NEUTRAL_CHROMA);
-  fillBlock(chromaCbMat, 0, 0, CALIBRATION_NEUTRAL_CHROMA);
+}
+
+export function buildYCrCbFromLuma(cv: any, lumaMat: any) {
+  const chromaCr = new cv.Mat(lumaMat.rows, lumaMat.cols, cv.CV_32FC1, new cv.Scalar(CALIBRATION_NEUTRAL_CHROMA));
+  const chromaCb = new cv.Mat(lumaMat.rows, lumaMat.cols, cv.CV_32FC1, new cv.Scalar(CALIBRATION_NEUTRAL_CHROMA));
+  const channels = new cv.MatVector();
+  channels.push_back(lumaMat);
+  channels.push_back(chromaCr);
+  channels.push_back(chromaCb);
+  const ycrcb = new cv.Mat();
+  cv.merge(channels, ycrcb);
+  channels.delete();
+  chromaCr.delete();
+  chromaCb.delete();
+  return ycrcb;
 }
 
 function averageBlockY(ycrcbMat: any, x0: number, y0: number): number {

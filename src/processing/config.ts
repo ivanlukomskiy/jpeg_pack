@@ -10,10 +10,8 @@ export interface DctToImageTransform {
 }
 
 export interface EncodingConf {
-  lumaConf: DctCoefConf[];
-  chromaConf: DctCoefConf[];
-  lumaDctToImageTransform: DctToImageTransform;
-  chromaDctToImageTransform: DctToImageTransform;
+  conf: DctCoefConf[];
+  dctToImageTransform: DctToImageTransform;
 }
 
 export const DctConfs: DctCoefConf[] = [
@@ -51,40 +49,12 @@ export const DctConfs: DctCoefConf[] = [
 
   { x: 1, y: 3, bitsCapacity: 3 },
   { x: 3, y: 1, bitsCapacity: 2 },
-]; // 24
-
-// 3 * 4 + 2 -> 14 bytes?
-
-export const DctConfsChroma: DctCoefConf[] = [
-  { x: 0, y: 0, bitsCapacity: 1 },
-  { x: 1, y: 0, bitsCapacity: 1 },
-  { x: 0, y: 1, bitsCapacity: 1 },
-  { x: 1, y: 1, bitsCapacity: 1 },
-  { x: 2, y: 0, bitsCapacity: 1 },
-  { x: 0, y: 2, bitsCapacity: 1 },
-  { x: 2, y: 2, bitsCapacity: 1 },
-  { x: 3, y: 3, bitsCapacity: 1 },
-
-  // {x: 0, y: 0, bitsCapacity: 2},
-  // {x: 1, y: 0, bitsCapacity: 1},
-  // {x: 0, y: 1, bitsCapacity: 1},
-  // {x: 2, y: 0, bitsCapacity: 1},
-  // {x: 0, y: 2, bitsCapacity: 1},
-]; // 4 * 2
+];
 
 export const DefaultEncodingConf: EncodingConf = {
-  lumaConf: DctConfs,
-  // chromaConf: DctConfs,
-  chromaConf: DctConfsChroma,
-  lumaDctToImageTransform: {
+  conf: DctConfs,
+  dctToImageTransform: {
     multiplier: 0.21,
     addition: 0.27,
   },
-  chromaDctToImageTransform: {
-    multiplier: 0.21,
-    // multiplier: .0,
-    addition: 0.5,
-  },
 };
-
-// 16 + 4 * 2 = 24 bits / block; 96 for 4 blocks
