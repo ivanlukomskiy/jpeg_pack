@@ -1,7 +1,7 @@
 import type { EncodingConf } from './config';
 import { DctCalc } from './dct';
 import { Uint8ArrayBuilder } from './uint_array_builder';
-import { DctCoefIterator } from './blocks_iterator.ts';
+import { DctCoefIterator, countTotalBits } from './blocks_iterator.ts';
 import {
   applyLumaCorrection,
   CALIBRATION_LUMA_VALUES,
@@ -41,11 +41,7 @@ export class DecoderImpl implements Decoder {
     }
     this.height = bgr32f.rows;
     this.width = bgr32f.cols;
-    let bitsPerBlock = 0;
-    this.conf.conf.forEach(c => {
-      bitsPerBlock += c.bitsCapacity;
-    });
-    const expectedSize = (((bitsPerBlock * bgr32f.rows) / 8) * bgr32f.cols) / 8 / 8;
+    const expectedSize = Math.ceil(countTotalBits(this.width, this.height, this.conf) / 8);
     this.res = new Uint8ArrayBuilder(expectedSize);
 
     this.ycrcb = new this.cv.Mat();

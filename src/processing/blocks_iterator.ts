@@ -1,5 +1,7 @@
-import { isCalibrationMcu } from './calibration.ts';
+import { isCalibrationBlock } from './calibration.ts';
 import type { DctCoefConf, EncodingConf } from './config.ts';
+
+export const BLOCK_SIZE = 8;
 
 export const BlockType = {
   LUMA: 'luma',
@@ -7,45 +9,11 @@ export const BlockType = {
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
-interface BlockGroup {
-  offsetX: number;
-  offsetY: number;
-  confs: DctCoefConf[];
-}
-
-function buildBlockGroups(conf: EncodingConf): BlockGroup[] {
-  return [
-    { offsetX: 0, offsetY: 0, confs: conf.conf },
-    { offsetX: 8, offsetY: 0, confs: conf.conf },
-    { offsetX: 0, offsetY: 8, confs: conf.conf },
-    { offsetX: 8, offsetY: 8, confs: conf.conf },
-  ];
-}
-
-function groupFits(groupIndex: number, xBase: number, yBase: number, width: number, height: number): boolean {
-  const group = groupIndex;
-  if (group === 0) return xBase + 8 <= width && yBase + 8 <= height;
-  if (group === 1) return xBase + 16 <= width && yBase + 8 <= height;
-  if (group === 2) return xBase + 8 <= width && yBase + 16 <= height;
-  if (group === 3) return xBase + 16 <= width && yBase + 16 <= height;
-  return false;
-}
-
-export function getMcuGridSize(width: number, height: number) {
+export function getBlockGridSize(width: number, height: number) {
   return {
-    mcuCols: Math.ceil(width / 16),
-    mcuRows: Math.ceil(height / 16),
+    blockCols: Math.ceil(width / BLOCK_SIZE),
+    blockRows: Math.ceil(height / BLOCK_SIZE),
   };
-}
-
-export function getActiveGroupIndices(xBase: number, yBase: number, width: number, height: number): number[] {
-  const indices: number[] = [];
-  for (let i = 0; i < 4; i++) {
-    if (groupFits(i, xBase, yBase, width, height)) {
-      indices.push(i);
-    }
-  }
-  return indices;
 }
 
 export interface DctCoefPoint {
@@ -58,63 +26,54 @@ export interface DctCoefPoint {
 }
 
 export class DctCoefIterator {
-  private mcuIndex = -1;
-  private groupIdx = 0;
+  private blockIndex = -1;
   private confIdx = 0;
-  private activeGroupIndices: number[] = [];
-  private currentGroupConfs: DctCoefConf[] = [];
-  private readonly width: number;
-  private readonly height: number;
-  private readonly blockGroups: BlockGroup[];
-  private readonly mcuCols: number;
-  private readonly mcuRows: number;
+  private readonly confs: DctCoefConf[];
+  private readonly blockCols: number;
+  private readonly blockRows: number;
 
   constructor(width: number, height: number, conf: EncodingConf) {
-    this.width = width;
-    this.height = height;
-    this.blockGroups = buildBlockGroups(conf);
-    const grid = getMcuGridSize(width, height);
-    this.mcuCols = grid.mcuCols;
-    this.mcuRows = grid.mcuRows;
+    this.confs = conf.conf;
+    const grid = getBlockGridSize(width, height);
+    this.blockCols = grid.blockCols;
+    this.blockRows = grid.blockRows;
   }
 
   public next(): DctCoefPoint | null {
     while (true) {
-      if (this.confIdx < this.currentGroupConfs.length) {
-        const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
-        const conf = this.currentGroupConfs[this.confIdx++];
-        const xBase = (this.mcuIndex % this.mcuCols) * 16;
-        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
-        return {
-          x: xBase + group.offsetX + conf.x,
-          y: yBase + group.offsetY + conf.y,
-          conf,
-          confX: conf.x,
-          confY: conf.y,
-          bitsCapacity: conf.bitsCapacity,
-        };
-      }
-
-      this.groupIdx++;
-      this.confIdx = 0;
-
-      while (this.groupIdx >= this.activeGroupIndices.length) {
+      if (this.confIdx >= this.confs.length) {
+        this.confIdx = 0;
         do {
-          this.mcuIndex++;
-          this.groupIdx = 0;
-
-          if (this.mcuIndex >= this.mcuCols * this.mcuRows) {
+          this.blockIndex++;
+          if (this.blockIndex >= this.blockCols * this.blockRows) {
             return null;
           }
-        } while (isCalibrationMcu(this.mcuIndex));
-
-        const xBase = (this.mcuIndex % this.mcuCols) * 16;
-        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
-        this.activeGroupIndices = getActiveGroupIndices(xBase, yBase, this.width, this.height);
+        } while (isCalibrationBlock(this.blockIndex, this.blockCols));
+        continue;
       }
 
-      const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
-      this.currentGroupConfs = group.confs;
+      if (this.blockIndex < 0) {
+        do {
+          this.blockIndex++;
+          if (this.blockIndex >= this.blockCols * this.blockRows) {
+            return null;
+          }
+        } while (isCalibrationBlock(this.blockIndex, this.blockCols));
+      }
+
+      const conf = this.confs[this.confIdx++];
+      const blockCol = this.blockIndex % this.blockCols;
+      const blockRow = Math.floor(this.blockIndex / this.blockCols);
+      const xBase = blockCol * BLOCK_SIZE;
+      const yBase = blockRow * BLOCK_SIZE;
+      return {
+        x: xBase + conf.x,
+        y: yBase + conf.y,
+        conf,
+        confX: conf.x,
+        confY: conf.y,
+        bitsCapacity: conf.bitsCapacity,
+      };
     }
   }
 }
@@ -129,25 +88,19 @@ function blockName(confX: number, confY: number) {
   return `${BlockType.LUMA}_${confX}_${confY}`;
 }
 
-function iterMcuCoefPoints(conf: EncodingConf): DctCoefPoint[] {
-  const points: DctCoefPoint[] = [];
-  for (const group of buildBlockGroups(conf)) {
-    for (const c of group.confs) {
-      points.push({
-        x: group.offsetX + c.x,
-        y: group.offsetY + c.y,
-        conf: c,
-        confX: c.x,
-        confY: c.y,
-        bitsCapacity: c.bitsCapacity,
-      });
-    }
-  }
-  return points;
+function iterBlockCoefPoints(conf: EncodingConf): DctCoefPoint[] {
+  return conf.conf.map(c => ({
+    x: c.x,
+    y: c.y,
+    conf: c,
+    confX: c.x,
+    confY: c.y,
+    bitsCapacity: c.bitsCapacity,
+  }));
 }
 
-export function getMcuDataBits(conf: EncodingConf): number {
-  return iterMcuCoefPoints(conf).reduce((sum, point) => sum + point.bitsCapacity, 0);
+export function getBlockDataBits(conf: EncodingConf): number {
+  return iterBlockCoefPoints(conf).reduce((sum, point) => sum + point.bitsCapacity, 0);
 }
 
 export function buildDctConfStats(conf: EncodingConf): DctConfStats {
@@ -155,7 +108,7 @@ export function buildDctConfStats(conf: EncodingConf): DctConfStats {
   const nameToBitsInBlock: Record<string, number> = {};
   let offset = 0;
   let blockSize = 0;
-  for (const next of iterMcuCoefPoints(conf)) {
+  for (const next of iterBlockCoefPoints(conf)) {
     const name = blockName(next.confX, next.confY);
     for (let i = 0; i < next.bitsCapacity; i++) {
       offsetToName[offset] = name;

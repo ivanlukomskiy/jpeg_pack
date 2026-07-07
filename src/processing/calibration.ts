@@ -6,13 +6,14 @@ export const CALIBRATION_BLOCK_OFFSETS = [
   { x: 0, y: 8 },
   { x: 8, y: 8 },
 ];
-export const CALIBRATION_MCU_INDEX = 0;
 export const CALIBRATION_NEUTRAL_CHROMA = 0.5;
 const BLOCK_SIZE = 8;
 const MIN_SCALE = 1e-4;
 
-export function isCalibrationMcu(mcuIndex: number): boolean {
-  return mcuIndex === CALIBRATION_MCU_INDEX;
+export function isCalibrationBlock(blockIndex: number, blockCols: number): boolean {
+  const blockCol = blockIndex % blockCols;
+  const blockRow = Math.floor(blockIndex / blockCols);
+  return blockCol < 2 && blockRow < 2;
 }
 
 function fillBlock(mat: any, x0: number, y0: number, value: number) {

@@ -15,7 +15,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
 import { BarChart } from '@mantine/charts';
 import { jpegRoundTripBgr32f } from '../../processing/utils.ts';
-import { buildDctConfStats, normalizeErrorSources } from '../../processing/blocks_iterator.ts';
+import { buildDctConfStats, countTotalBits, normalizeErrorSources } from '../../processing/blocks_iterator.ts';
 import { ErrTable } from '../../components/err_table/ErrTable.tsx';
 import { analyzeF32Matrix, type ChannelStats } from '../../processing/matrix_analysis.ts';
 import { MatChart } from '../../components/mat_chart/MatChart.tsx';
@@ -53,7 +53,9 @@ export function Benchmark() {
   const benchmark = useCallback(async () => {
     try {
       const stats = buildDctConfStats(DefaultEncodingConf);
-      const size = stats.blockSizeBits * blocksPerAxis * blocksPerAxis;
+      const width = 8 * blocksPerAxis;
+      const height = 8 * blocksPerAxis;
+      const size = countTotalBits(width, height, DefaultEncodingConf) / 8;
       const ycrcbStats: Record<string, ChannelStats> = {};
       const rgbStats: Record<string, ChannelStats> = {};
 
@@ -65,7 +67,7 @@ export function Benchmark() {
       for (let i = 0; i < iterations; i++) {
         const original = randomUint8Arr(size);
         const iter = BitsIteratorImpl.fromBytes(original);
-        const encoder = new EncoderImpl(cvLib.cv, 16 * blocksPerAxis, 16 * blocksPerAxis, iter, DefaultEncodingConf);
+        const encoder = new EncoderImpl(cvLib.cv, width, height, iter, DefaultEncodingConf);
         const res = encoder.encode(true);
         analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
         analyzeF32Matrix(rgbStats, encoder.bgr32f, false);
@@ -89,8 +91,8 @@ export function Benchmark() {
       const normalized = normalizeErrorSources(
         acc,
         stats,
-        16 * blocksPerAxis,
-        16 * blocksPerAxis,
+        width,
+        height,
         iterations,
         DefaultEncodingConf,
       );
