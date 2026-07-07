@@ -5,13 +5,22 @@ export interface BitsIterator {
   nextN(n: number): number | null;
 }
 
-export function randomUint8Arr(lenBits: number) {
-  if (lenBits % 8 != 0) throw new Error('length should be multiple of 8');
-  const data = new Uint8Array(Math.ceil(lenBits / 8));
+export function randomBytesForBitLength(bitLength: number): Uint8Array {
+  if (bitLength <= 0) return new Uint8Array(0);
+  const data = new Uint8Array(Math.ceil(bitLength / 8));
   for (let i = 0; i < data.length; i++) {
     data[i] = Math.floor(Math.random() * 256);
   }
+  const remainder = bitLength % 8;
+  if (remainder !== 0) {
+    data[data.length - 1] &= 0xff << (8 - remainder);
+  }
   return data;
+}
+
+export function randomUint8Arr(lenBits: number) {
+  if (lenBits % 8 != 0) throw new Error('length should be multiple of 8');
+  return randomBytesForBitLength(lenBits);
 }
 
 export class BitsIteratorImpl implements BitsIterator {
@@ -32,8 +41,8 @@ export class BitsIteratorImpl implements BitsIterator {
     return new BitsIteratorImpl(data, length);
   }
 
-  static fromBytes(data: Uint8Array): BitsIteratorImpl {
-    return new BitsIteratorImpl(data, data.length * 8);
+  static fromBytes(data: Uint8Array, bitLength: number = data.length * 8): BitsIteratorImpl {
+    return new BitsIteratorImpl(data, bitLength);
   }
 
   static async fromFile(file: File): Promise<BitsIteratorImpl> {

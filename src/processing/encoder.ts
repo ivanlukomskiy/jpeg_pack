@@ -51,7 +51,7 @@ export class EncoderImpl implements Encoder {
     this.applyTransforms();
     writeCalibrationBlocks(this.lumaMat);
     const transformed = buildYCrCbFromLuma(this.cv, this.lumaMat);
-    if (debug) this.transformed = transformed;
+    if (debug) this.transformed = transformed.clone();
     progress?.(EncodingStep.NORMALIZE, StepStatusCode.COMPLETED);
 
     progress?.(EncodingStep.CONVERT_TO_BGR, StepStatusCode.IN_PROGRESS);

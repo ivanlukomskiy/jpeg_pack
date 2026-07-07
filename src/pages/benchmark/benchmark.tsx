@@ -7,7 +7,7 @@ import {
   calculateErrorSources,
   compareBits,
   compareBytes,
-  randomUint8Arr,
+  randomBytesForBitLength,
 } from '../../processing/bits_iter';
 import { EncoderImpl } from '../../processing/encoder';
 import { DecoderImpl } from '../../processing/decoder';
@@ -55,7 +55,7 @@ export function Benchmark() {
       const stats = buildDctConfStats(DefaultEncodingConf);
       const width = 8 * blocksPerAxis;
       const height = 8 * blocksPerAxis;
-      const size = countTotalBits(width, height, DefaultEncodingConf) / 8;
+      const sizeBits = countTotalBits(width, height, DefaultEncodingConf);
       const ycrcbStats: Record<string, ChannelStats> = {};
       const rgbStats: Record<string, ChannelStats> = {};
 
@@ -65,8 +65,8 @@ export function Benchmark() {
       setProgress(0);
       const acc = buildErrSourceAcc(stats);
       for (let i = 0; i < iterations; i++) {
-        const original = randomUint8Arr(size);
-        const iter = BitsIteratorImpl.fromBytes(original);
+        const original = randomBytesForBitLength(sizeBits);
+        const iter = BitsIteratorImpl.fromBytes(original, sizeBits);
         const encoder = new EncoderImpl(cvLib.cv, width, height, iter, DefaultEncodingConf);
         const res = encoder.encode(true);
         analyzeF32Matrix(ycrcbStats, encoder.transformed, true);
@@ -82,7 +82,7 @@ export function Benchmark() {
         const bitErrorsCount = compareBits(original, decoded);
         const byteErrorsCount = compareBytes(original, decoded);
         calculateErrorSources(original, decoded, acc, stats);
-        bitRates.push(bitErrorsCount / size);
+        bitRates.push(bitErrorsCount / sizeBits);
         byteRates.push(byteErrorsCount / original.length);
         setBitErrRate([...bitRates]);
         setByteErrRate([...byteRates]);
