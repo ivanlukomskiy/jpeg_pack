@@ -1,9 +1,10 @@
 import { type ChangeEvent, useCallback, useMemo, useState } from 'react';
 import { useOpenCV } from '../../hooks/opencv';
-import { BitsIteratorImpl } from '../../processing/bits_iter';
+import { BitsIteratorImpl, compareBytes, randomBytesForBitLength } from '../../processing/bits_iter';
 import { DecoderImpl } from '../../processing/decoder';
 import { DefaultEncodingConf } from '../../processing/config';
 import { EncoderImpl } from '../../processing/encoder';
+import { countTotalBits } from '../../processing/blocks_iterator.ts';
 import { Button, Checkbox, Flex, NumberInput, Pill, SegmentedControl, Textarea, Title } from '@mantine/core';
 import { MatRender } from '../../components/mat_render/MatRender';
 import { Mat } from '../../components/mat/Mat';
@@ -16,6 +17,10 @@ const INP_TYPE_RANDOM = 'random';
 const INP_TYPE_BYTES = 'bytes';
 const INP_TYPE_OPTIONS = [INP_TYPE_RANDOM, INP_TYPE_TEXT, INP_TYPE_BYTES];
 
+const IMAGE_SIZE = 32;
+const CAPACITY_BITS = countTotalBits(IMAGE_SIZE, IMAGE_SIZE, DefaultEncodingConf);
+const CAPACITY_BYTES = Math.ceil(CAPACITY_BITS / 8);
+
 const rand = () => Math.floor(Math.random() * 256);
 
 function randomBytesString(n: number) {
@@ -26,28 +31,23 @@ function uint8ArrayToString(arr: Uint8Array): string {
   return Array.from(arr).join(', ');
 }
 
-function compareCommaSeparatedBytes(a: string, b: string): boolean {
-  // Split by comma, trim spaces, filter out empties
-  const arrA = a
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-  const arrB = b
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
+function parseCommaSeparatedBytes(value: string): Uint8Array {
+  return new Uint8Array(
+    value
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(Number),
+  );
+}
 
-  if (arrA.length !== arrB.length) return false;
-
-  for (let i = 0; i < arrA.length; i++) {
-    const numA = Number(arrA[i]);
-    const numB = Number(arrB[i]);
-    // Strict equality on numeric values
-    if (!Number.isFinite(numA) || !Number.isFinite(numB) || numA !== numB) {
-      return false;
-    }
+function buildPayload(source: Uint8Array): Uint8Array {
+  if (source.length > CAPACITY_BYTES) {
+    throw new Error(`input exceeds ${CAPACITY_BYTES} byte capacity for ${IMAGE_SIZE}x${IMAGE_SIZE}`);
   }
-  return true;
+  const payload = new Uint8Array(CAPACITY_BYTES);
+  payload.set(source);
+  return payload;
 }
 
 export function OneBlockTest() {
@@ -63,6 +63,8 @@ export function OneBlockTest() {
   );
   const [reencode, setReencode] = useState(false);
   const [decoded, setDecoded] = useState('');
+  const [encodedPayload, setEncodedPayload] = useState<Uint8Array | null>(null);
+  const [decodedBytes, setDecodedBytes] = useState<Uint8Array | null>(null);
   const cvLib = useOpenCV();
   const [ycrcbStats, setYCrCbStats] = useState<Record<string, ChannelStats> | null>(null);
   const [rgbStats, setRgbStats] = useState<Record<string, ChannelStats> | null>(null);
@@ -70,23 +72,20 @@ export function OneBlockTest() {
   const go = useCallback(
     (bytes?: string) => {
       try {
-        let iter = null;
+        let source: Uint8Array;
         if (bytes || inpType == INP_TYPE_BYTES) {
-          if (bytes) {
-            console.log('bytes', bytes);
-            iter = BitsIteratorImpl.fromBytes(new Uint8Array(bytes.split(',').map(Number)));
-          } else {
-            iter = BitsIteratorImpl.fromBytes(new Uint8Array(inpBytes.split(',').map(Number)));
-          }
+          source = parseCommaSeparatedBytes(bytes ?? inpBytes);
         } else if (inpType == INP_TYPE_TEXT) {
-          const encoder = new TextEncoder();
-          const data = encoder.encode(inpText);
-          console.log('data', data);
-          iter = BitsIteratorImpl.fromText(inpText);
+          source = new TextEncoder().encode(inpText);
         } else {
-          iter = BitsIteratorImpl.random(randInputSize);
+          source = randomBytesForBitLength(Math.min(randInputSize, CAPACITY_BITS));
         }
-        const encoder = new EncoderImpl(cvLib.cv, 32, 32, iter, DefaultEncodingConf);
+        const payload = buildPayload(source);
+        const iter = BitsIteratorImpl.fromBytes(payload, CAPACITY_BITS);
+        setEncodedPayload(payload);
+        setDecodedBytes(null);
+        setDecoded('');
+        const encoder = new EncoderImpl(cvLib.cv, IMAGE_SIZE, IMAGE_SIZE, iter, DefaultEncodingConf);
         const bgr32f = encoder.encode(true);
         setRes(bgr32f);
         const ycrcbStats: Record<string, ChannelStats> = {};
@@ -127,7 +126,7 @@ export function OneBlockTest() {
         bgr32f: decoder.bgr32f,
         ycrcb: decoder.ycrcb,
       });
-      console.log('decoded:', bytes);
+      setDecodedBytes(bytes);
       setDecoded(uint8ArrayToString(bytes));
     },
     [cvLib.cv, reencode],
@@ -148,18 +147,19 @@ export function OneBlockTest() {
   }, []);
 
   const randomize = useCallback(() => {
-    const val = randomBytesString(35);
+    const val = randomBytesString(CAPACITY_BYTES);
     setInpBytes(val);
     return val;
   }, []);
 
   const match = useMemo(() => {
-    if (decoded == '') return null;
-    return compareCommaSeparatedBytes(inpBytes, decoded);
-  }, [inpBytes, decoded]);
+    if (!encodedPayload || !decodedBytes) return null;
+    return compareBytes(encodedPayload, decodedBytes) === 0;
+  }, [encodedPayload, decodedBytes]);
 
   const randomizeAndCheck = useCallback(async () => {
     setDecoded('');
+    setDecodedBytes(null);
     const val = randomize();
     const res = go(val);
     await decode(res);
@@ -190,9 +190,7 @@ export function OneBlockTest() {
           <Title size={'lg'}>Decoded</Title>
           {decoded}
           {match !== null && (
-            <Pill style={{ backgroundColor: match ? 'lightgreen' : 'red' }}>
-              {compareCommaSeparatedBytes(inpBytes, decoded) ? 'Match' : 'Mismatch'}
-            </Pill>
+            <Pill style={{ backgroundColor: match ? 'lightgreen' : 'red' }}>{match ? 'Match' : 'Mismatch'}</Pill>
           )}
         </Flex>
       </Flex>
