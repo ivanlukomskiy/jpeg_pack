@@ -58,16 +58,19 @@ const stepTextColorMap = {
 
 function validateDimension(value: number) {
   if (value <= 0) return 'Must be a positive integer';
-  if (value % 16 != 0) return 'Must be a multiple of 16';
+  if (value % 8 != 0) return 'Must be a multiple of 8';
   return null;
 }
+
+const DEFAULT_WIDTH = 1080;
+const DEFAULT_HEIGHT = 1080;
 
 export function EncodeFile() {
   const [encFile, setEncFile] = useState<File | null>(null);
   const [decFile, setDecFile] = useState<File | null>(null);
   const cvLib = useOpenCV();
-  const [w, setW] = useState(1024);
-  const [h, setH] = useState(1024);
+  const [w, setW] = useState(DEFAULT_WIDTH);
+  const [h, setH] = useState(DEFAULT_HEIGHT);
   // const [w, setW] = useState(1024);
   // const [h, setH] = useState(1024);
   const [progress, setProgress] = useState<Record<string, StepStatus> | null>();
@@ -285,7 +288,7 @@ export function EncodeFile() {
           <NumberInput
             label={'width'}
             hideControls
-            min={16}
+            min={8}
             max={1080}
             value={w}
             onChange={onSetW}
@@ -294,7 +297,7 @@ export function EncodeFile() {
           <NumberInput
             label={'height'}
             hideControls
-            min={16}
+            min={8}
             max={1080}
             value={h}
             onChange={onSetH}

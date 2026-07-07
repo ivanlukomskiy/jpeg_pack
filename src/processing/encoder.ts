@@ -1,7 +1,7 @@
 import type { BitsIterator } from './bits_iter';
 import type { EncodingConf } from './config';
 import { DctCalc } from './dct';
-import { DctCoefIterator } from './blocks_iterator.ts';
+import { DctCoefIterator, getChromaPlaneSize } from './blocks_iterator.ts';
 import { EncodingStep, StepStatusCode } from './progress.ts';
 
 export interface Encoder {
@@ -23,16 +23,16 @@ export class EncoderImpl implements Encoder {
   public bgr32f: any;
 
   constructor(cv: any, width: number, height: number, bitsIter: BitsIterator, conf: EncodingConf) {
-    if (height % 16 !== 0 || width % 16 != 0) throw new Error('dimensions should be multiples of 16');
+    if (height % 8 !== 0 || width % 8 != 0) throw new Error('dimensions should be multiples of 8');
 
     this.height = height;
     this.width = width;
 
     this.channels = new cv.MatVector();
+    const chromaSize = getChromaPlaneSize(width, height);
     for (let i = 0; i < 3; i++) {
-      const ds = i === 0 ? 1 : 2;
-      const rows = Math.max(1, (height / ds) | 0); // integer, >= 1
-      const cols = Math.max(1, (width / ds) | 0); // integer, >= 1
+      const rows = i === 0 ? height : chromaSize.rows;
+      const cols = i === 0 ? width : chromaSize.cols;
 
       const mat = cv.Mat.zeros(rows, cols, cv.CV_32FC1);
       this.channels.push_back(mat);

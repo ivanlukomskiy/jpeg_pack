@@ -1,7 +1,7 @@
 import type { EncodingConf } from './config';
 import { DctCalc } from './dct';
 import { Uint8ArrayBuilder } from './uint_array_builder';
-import { DctCoefIterator } from './blocks_iterator.ts';
+import { DctCoefIterator, getChromaPlaneSize } from './blocks_iterator.ts';
 import { DecodingStep, StepStatusCode } from './progress.ts';
 
 export interface Decoder {
@@ -31,8 +31,8 @@ export class DecoderImpl implements Decoder {
   decode(bgr32f: any, debug: boolean = false, progress?: (step: number, state: number) => void) {
     progress?.(DecodingStep.CONVERT_TO_YCRCB, StepStatusCode.IN_PROGRESS);
     this.bgr32f = bgr32f;
-    if (bgr32f.rows % 16 != 0 || bgr32f.cols % 16 != 0) {
-      throw new Error(`image dimensions should be multiples of 16; got ${bgr32f.rows}x${bgr32f.cols}`);
+    if (bgr32f.rows % 8 != 0 || bgr32f.cols % 8 != 0) {
+      throw new Error(`image dimensions should be multiples of 8; got ${bgr32f.rows}x${bgr32f.cols}`);
     }
     this.height = bgr32f.rows;
     this.width = bgr32f.cols;
@@ -115,19 +115,32 @@ export class DecoderImpl implements Decoder {
     return dst;
   }
 
+  private padChromaMat(mat: any) {
+    const chromaSize = getChromaPlaneSize(this.width, this.height);
+    if (mat.rows === chromaSize.rows && mat.cols === chromaSize.cols) {
+      return mat;
+    }
+    const dst = new this.cv.Mat(chromaSize.rows, chromaSize.cols, this.cv.CV_32FC1, new this.cv.Scalar(0));
+    const roi = dst.roi(new this.cv.Rect(0, 0, mat.cols, mat.rows));
+    mat.copyTo(roi);
+    roi.delete();
+    mat.delete();
+    return dst;
+  }
+
   private splitToChannels() {
     this.channels = new this.cv.MatVector();
     this.cv.split(this.image, this.channels);
 
     let tmp = this.channels.get(1);
     let downsampled = this.downsampleBy2(tmp);
-    this.channels.set(1, downsampled);
     tmp.delete();
+    this.channels.set(1, this.padChromaMat(downsampled));
 
     tmp = this.channels.get(2);
     downsampled = this.downsampleBy2(tmp);
-    this.channels.set(2, downsampled);
     tmp.delete();
+    this.channels.set(2, this.padChromaMat(downsampled));
   }
 
   private applyTransforms() {

@@ -5,7 +5,7 @@
 // 5. data length
 // 6. data symbols
 
-import { buildDctConfStats } from '../processing/blocks_iterator.ts';
+import { countTotalBits } from '../processing/blocks_iterator.ts';
 import type { EncodingConf } from '../processing/config';
 import { DefaultEncodingConf } from '../processing/config';
 import { addErrorCorrection, BlockSize, decodeErrorCorrection } from '../processing/reed_solomon/adapter';
@@ -16,8 +16,7 @@ export function getFullByteCapacity(
   height: number,
   conf: EncodingConf = DefaultEncodingConf,
 ): number {
-  const stats = buildDctConfStats(conf);
-  const capacityBytes = (((width / 16) * height) / 16) * (stats.blockSizeBits / 8);
+  const capacityBytes = countTotalBits(width, height, conf) / 8;
   return Math.floor(capacityBytes / 255) * 255;
 }
 

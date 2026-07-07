@@ -8,34 +8,56 @@ export const BlockType = {
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
-interface EncodingStage {
+interface BlockGroup {
   offsetX: number;
   offsetY: number;
-  conf: DctCoefConf;
-  chIdx: number;
   blockType: BlockType;
+  chIdx: number;
+  confs: DctCoefConf[];
 }
 
-function buildStages(conf: EncodingConf) {
-  const stages: EncodingStage[] = [];
-  function addStage(confs: DctCoefConf[], offsetX: number, offsetY: number, blockType: BlockType, chIdx: number) {
-    confs.forEach(conf => {
-      stages.push({
-        offsetX,
-        offsetY,
-        conf,
-        blockType,
-        chIdx,
-      });
-    });
+function buildBlockGroups(conf: EncodingConf): BlockGroup[] {
+  return [
+    { offsetX: 0, offsetY: 0, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
+    { offsetX: 8, offsetY: 0, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
+    { offsetX: 0, offsetY: 8, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
+    { offsetX: 8, offsetY: 8, blockType: BlockType.LUMA, chIdx: 0, confs: conf.lumaConf },
+    { offsetX: 0, offsetY: 0, blockType: BlockType.CR, chIdx: 1, confs: conf.chromaConf },
+    { offsetX: 0, offsetY: 0, blockType: BlockType.CB, chIdx: 2, confs: conf.chromaConf },
+  ];
+}
+
+function groupFits(groupIndex: number, xBase: number, yBase: number, width: number, height: number): boolean {
+  const group = groupIndex;
+  if (group === 0) return xBase + 8 <= width && yBase + 8 <= height;
+  if (group === 1) return xBase + 16 <= width && yBase + 8 <= height;
+  if (group === 2) return xBase + 8 <= width && yBase + 16 <= height;
+  if (group === 3 || group === 4 || group === 5) return xBase + 16 <= width && yBase + 16 <= height;
+  return false;
+}
+
+export function getMcuGridSize(width: number, height: number) {
+  return {
+    mcuCols: Math.ceil(width / 16),
+    mcuRows: Math.ceil(height / 16),
+  };
+}
+
+export function getActiveGroupIndices(xBase: number, yBase: number, width: number, height: number): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    if (groupFits(i, xBase, yBase, width, height)) {
+      indices.push(i);
+    }
   }
-  addStage(conf.lumaConf, 0, 0, BlockType.LUMA, 0);
-  addStage(conf.lumaConf, 8, 0, BlockType.LUMA, 0);
-  addStage(conf.lumaConf, 0, 8, BlockType.LUMA, 0);
-  addStage(conf.lumaConf, 8, 8, BlockType.LUMA, 0);
-  addStage(conf.chromaConf, 0, 0, BlockType.CR, 1);
-  addStage(conf.chromaConf, 0, 0, BlockType.CB, 2);
-  return stages;
+  return indices;
+}
+
+export function getChromaPlaneSize(width: number, height: number) {
+  return {
+    cols: Math.ceil(width / 16) * 8,
+    rows: Math.ceil(height / 16) * 8,
+  };
 }
 
 export interface DctCoefPoint {
@@ -50,37 +72,65 @@ export interface DctCoefPoint {
 }
 
 export class DctCoefIterator {
-  private stageIdx: number = -1;
+  private mcuIndex = -1;
+  private groupIdx = 0;
+  private confIdx = 0;
+  private activeGroupIndices: number[] = [];
+  private currentGroupConfs: DctCoefConf[] = [];
   private readonly width: number;
   private readonly height: number;
-  private readonly stages: EncodingStage[];
+  private readonly blockGroups: BlockGroup[];
+  private readonly mcuCols: number;
+  private readonly mcuRows: number;
 
   constructor(width: number, height: number, conf: EncodingConf) {
     this.width = width;
     this.height = height;
-    this.stages = buildStages(conf);
+    this.blockGroups = buildBlockGroups(conf);
+    const grid = getMcuGridSize(width, height);
+    this.mcuCols = grid.mcuCols;
+    this.mcuRows = grid.mcuRows;
   }
 
   public next(): DctCoefPoint | null {
-    this.stageIdx++;
-    if (this.stageIdx >= (this.width / 16) * (this.height / 16) * this.stages.length) {
-      return null;
+    while (true) {
+      if (this.confIdx < this.currentGroupConfs.length) {
+        const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
+        const conf = this.currentGroupConfs[this.confIdx++];
+        const xBase = (this.mcuIndex % this.mcuCols) * 16;
+        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
+        const downsampleCoef = group.blockType == BlockType.LUMA ? 1 : 2;
+        return {
+          x: xBase / downsampleCoef + group.offsetX + conf.x,
+          y: yBase / downsampleCoef + group.offsetY + conf.y,
+          conf,
+          confX: conf.x,
+          confY: conf.y,
+          chIdx: group.chIdx,
+          bitsCapacity: conf.bitsCapacity,
+          blockType: group.blockType,
+        };
+      }
+
+      this.groupIdx++;
+      this.confIdx = 0;
+
+      while (this.groupIdx >= this.activeGroupIndices.length) {
+        this.mcuIndex++;
+        this.groupIdx = 0;
+
+        if (this.mcuIndex >= this.mcuCols * this.mcuRows) {
+          return null;
+        }
+
+        const xBase = (this.mcuIndex % this.mcuCols) * 16;
+        const yBase = Math.floor(this.mcuIndex / this.mcuCols) * 16;
+        this.activeGroupIndices = getActiveGroupIndices(xBase, yBase, this.width, this.height);
+      }
+
+      const group = this.blockGroups[this.activeGroupIndices[this.groupIdx]];
+      this.currentGroupConfs = group.confs;
     }
-    const stageLoops = Math.floor(this.stageIdx / this.stages.length);
-    const xBase = (stageLoops % (this.width / 16)) * 16;
-    const yBase = Math.floor(stageLoops / (this.width / 16)) * 16;
-    const stage = this.stages[this.stageIdx % this.stages.length];
-    const downsampleCoef = stage.blockType == BlockType.LUMA ? 1 : 2;
-    return {
-      x: xBase / downsampleCoef + stage.offsetX + stage.conf.x,
-      y: yBase / downsampleCoef + stage.offsetY + stage.conf.y,
-      conf: stage.conf,
-      confX: stage.conf.x,
-      confY: stage.conf.y,
-      chIdx: stage.chIdx,
-      bitsCapacity: stage.conf.bitsCapacity,
-      blockType: stage.blockType,
-    };
   }
 }
 
@@ -115,17 +165,53 @@ export function buildDctConfStats(conf: EncodingConf): DctConfStats {
   return { offsetToName, blockSizeBits: blockSize, nameToBitsInBlock };
 }
 
+export function countIteratorPoints(width: number, height: number, conf: EncodingConf): number {
+  const iter = new DctCoefIterator(width, height, conf);
+  let count = 0;
+  let next = iter.next();
+  while (next) {
+    count++;
+    next = iter.next();
+  }
+  return count;
+}
+
+export function countTotalBits(width: number, height: number, conf: EncodingConf): number {
+  const iter = new DctCoefIterator(width, height, conf);
+  let bits = 0;
+  let next = iter.next();
+  while (next) {
+    bits += next.bitsCapacity;
+    next = iter.next();
+  }
+  return bits;
+}
+
+export function countBlocksByName(width: number, height: number, conf: EncodingConf): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const iter = new DctCoefIterator(width, height, conf);
+  let next = iter.next();
+  while (next) {
+    const name = blockName(next.blockType, next.confX, next.confY);
+    counts[name] = (counts[name] ?? 0) + 1;
+    next = iter.next();
+  }
+  return counts;
+}
+
 export function normalizeErrorSources(
   errCountByName: Record<string, number>,
   stats: DctConfStats,
   width: number,
   height: number,
   iterations: number,
+  conf: EncodingConf,
 ): Record<string, number> {
-  const blocksCount = (width / 16) * (height / 16);
+  const blockCounts = countBlocksByName(width, height, conf);
   console.log('errCountByName', errCountByName);
   const normalized: Record<string, number> = {};
   Object.keys(stats.nameToBitsInBlock).forEach(name => {
+    const blocksCount = blockCounts[name] ?? 0;
     const totalBits = blocksCount * stats.nameToBitsInBlock[name];
     const errors = errCountByName[name] || 0;
     normalized[name] = totalBits > 0 ? errors / totalBits / iterations : 0;

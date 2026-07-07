@@ -86,7 +86,14 @@ export function Benchmark() {
         setByteErrRate([...byteRates]);
         setProgress((i + 1) / iterations);
       }
-      const normalized = normalizeErrorSources(acc, stats, 16 * blocksPerAxis, 16 * blocksPerAxis, iterations);
+      const normalized = normalizeErrorSources(
+        acc,
+        stats,
+        16 * blocksPerAxis,
+        16 * blocksPerAxis,
+        iterations,
+        DefaultEncodingConf,
+      );
       setErrByDctPos(normalized);
       setProgress(null);
       setRgbStats(rgbStats);
