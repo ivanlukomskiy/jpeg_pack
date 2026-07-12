@@ -248,8 +248,29 @@ export async function decodeJpeg(cv: any, jpegBytes: Uint8Array) {
   return { bgr32fDecoded: bgr32fDecoded, blob };
 }
 
+function mimeTypeFromFilename(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    case 'txt':
+      return 'text/plain';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 export function downloadFile(filename: string, data: Uint8Array) {
-  const blob = new Blob([data]);
+  const blob = new Blob([data], { type: mimeTypeFromFilename(filename) });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
